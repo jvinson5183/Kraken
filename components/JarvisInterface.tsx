@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { EdgeTray } from './EdgeTray'
 import { PortalGrid } from './PortalGrid'
 import { FullscreenPortal } from './FullscreenPortal'
-import { AvatarSelector, AvatarType } from './AvatarSelector'
+import { KrakenAssistant } from './KrakenAssistant'
 import { ClassificationBanner } from './ClassificationBanner'
 import { UserProfile } from './UserProfile'
 import { KrakenLogo } from './KrakenLogo'
@@ -22,7 +22,6 @@ import { WeatherPortalProvider } from './portals/WeatherPortal'
 // Portal configurations imported from constants file
 
 export function JarvisInterface() {
-  const [selectedAvatar, setSelectedAvatar] = useState<AvatarType>('kraken-eye')
 
   // Custom hooks for state management
   const { mousePosition, trayVisibility } = useMouseTracking()
@@ -141,20 +140,16 @@ export function JarvisInterface() {
         )}
       </AnimatePresence>
 
-      {/* AI Avatar Selector - Always visible in upper-left corner */}
-      <div 
-        className="absolute z-[200]"
-        style={{
+      {/* Kraken AI Assistant - Center when no portals, top-left when portals open */}
+      <KrakenAssistant
+        hasOpenPortals={hasOpenPortals}
+        mousePosition={mousePosition}
+        className={hasOpenPortals ? "absolute z-[200]" : ""}
+        style={hasOpenPortals ? {
           left: `${avatarPosition.left}px`,
           top: `${avatarPosition.top}px`
-        }}
-      >
-        <AvatarSelector
-          selectedAvatar={selectedAvatar}
-          onSelectAvatar={setSelectedAvatar}
-          mousePosition={mousePosition}
-        />
-      </div>
+        } : undefined}
+      />
 
       {/* Close All Portals Button - Bottom-left corner */}
       <AnimatePresence>
