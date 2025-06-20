@@ -121,6 +121,7 @@ import MapPortal from './portals/MapPortal'
 import CameraPortal from './portals/SimpleCameraPortal'
 import NewTimelinePortal from './portals/TimelinePortal'
 import DataViewPortal from './portals/DataViewPortal'
+import AlertsPortal from './portals/AlertsPortal'
 
 interface PortalProps {
   portal: PortalData
@@ -162,7 +163,7 @@ export function Portal({ portal, onClose, onExpand }: PortalProps) {
       case 'messenger':
         return <MessengerPortal />
       case 'alerts':
-        return <AlertsPortal />
+        return <AlertsPortal level={2} onLevelChange={() => {}} onClose={onClose} />
       case 'camera-capability':
         return <CameraPortal level={2} onLevelChange={() => {}} onClose={onClose} />
       case 'data-view':
@@ -460,7 +461,6 @@ function DocumentsPortal() { return <DefaultPortal title="Documents" icon="📄"
 function SettingsPortal() { return <DefaultPortal title="Settings" icon="⚙️" description="System configuration and preferences" /> }
 
 function MessengerPortal() { return <DefaultPortal title="Messenger" icon="💬" description="Real-time secure messaging" /> }
-function AlertsPortal() { return <DefaultPortal title="Alerts" icon="🚨" description="Alert center and notification management" /> }
 // CameraCapabilityPortal now uses the dedicated CameraPortal component
 
 

@@ -6,6 +6,7 @@ import { Maximize2, Minimize2, ZoomIn, ZoomOut, Layers, Target, Shield, X } from
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
+import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import 'leaflet/dist/leaflet.css'
 
@@ -59,40 +60,40 @@ interface MapPortalProps {
   onClose?: () => void
 }
 
-// Sample data - replace with real sensor feeds
+// Sample data - replace with real sensor feeds - Tel Aviv Area of Operations
 const SAMPLE_ASSETS = [
   {
     id: 'sensor-1',
     type: 'sensor',
-    position: [38.9072, -77.0369] as [number, number],
+    position: [32.0853, 34.7818] as [number, number],
     name: 'Sentinel Radar',
     status: 'online'
   },
   {
     id: 'effector-1', 
     type: 'effector',
-    position: [38.9100, -77.0400] as [number, number],
-    name: 'Phalanx CIWS',
+    position: [32.0890, 34.7750] as [number, number],
+    name: 'Iron Dome Battery',
     status: 'online'
   },
   {
     id: 'friendly-1',
     type: 'friendly',
-    position: [38.9050, -77.0300] as [number, number],
+    position: [32.0820, 34.7900] as [number, number],
     name: 'Apache-01',
     status: 'online'
   },
   {
     id: 'sensor-2',
     type: 'sensor',
-    position: [38.9120, -77.0320] as [number, number],
+    position: [32.0950, 34.7850] as [number, number],
     name: 'Aegis Radar',
     status: 'online'
   },
   {
     id: 'friendly-2',
     type: 'friendly',
-    position: [38.9030, -77.0450] as [number, number],
+    position: [32.0780, 34.7700] as [number, number],
     name: 'Blackhawk-02',
     status: 'online'
   }
@@ -101,11 +102,14 @@ const SAMPLE_ASSETS = [
 const SAMPLE_THREATS = [
   {
     id: 'threat-1',
-    position: [38.9200, -77.0200] as [number, number],
+    position: [32.4000, 35.2000] as [number, number],
     trajectory: [
-      [38.9200, -77.0200] as [number, number],
-      [38.9150, -77.0250] as [number, number],
-      [38.9100, -77.0300] as [number, number]
+      [32.6000, 48.5000] as [number, number], // Iran origin
+      [32.5500, 46.0000] as [number, number], // Over Iraq
+      [32.5000, 43.0000] as [number, number], // Eastern Syria
+      [32.4500, 40.0000] as [number, number], // Western Syria
+      [32.4200, 37.5000] as [number, number], // Eastern Turkey/Syria border
+      [32.4000, 35.2000] as [number, number]  // Current position approaching Tel Aviv
     ],
     type: 'drone',
     confidence: 85,
@@ -113,13 +117,16 @@ const SAMPLE_THREATS = [
   },
   {
     id: 'threat-2',
-    position: [38.8980, -77.0480] as [number, number],
+    position: [32.3000, 35.5000] as [number, number],
     trajectory: [
-      [38.8980, -77.0480] as [number, number],
-      [38.9020, -77.0420] as [number, number],
-      [38.9060, -77.0380] as [number, number]
+      [32.4000, 53.7000] as [number, number], // Iran origin (Isfahan area)
+      [32.3800, 50.0000] as [number, number], // Central Iran
+      [32.3600, 46.5000] as [number, number], // Iran-Iraq border
+      [32.3400, 42.0000] as [number, number], // Over Iraq
+      [32.3200, 38.5000] as [number, number], // Syria
+      [32.3000, 35.5000] as [number, number]  // Current position approaching Tel Aviv
     ],
-    type: 'aircraft',
+    type: 'missile',
     confidence: 92,
     threat_level: 'high' as const
   }
@@ -128,14 +135,14 @@ const SAMPLE_THREATS = [
 const SAMPLE_ZONES = [
   {
     id: 'zone-1',
-    center: [38.9072, -77.0369] as [number, number],
+    center: [32.0853, 34.7818] as [number, number],
     radius: 1500,
     type: 'engagement' as const,
     active: true
   },
   {
     id: 'zone-2',
-    center: [38.9000, -77.0450] as [number, number],
+    center: [32.0800, 34.7700] as [number, number],
     radius: 1000,
     type: 'no_fly' as const,
     active: true
@@ -236,7 +243,7 @@ const MapResizeHandler: React.FC<{ level: number }> = ({ level }) => {
 }
 
 const MapPortal: React.FC<MapPortalProps> = ({ level, onLevelChange, onClose }) => {
-  const [mapCenter] = useState<[number, number]>([38.9072, -77.0369])
+  const [mapCenter] = useState<[number, number]>([32.0853, 34.7818])
   const [mapZoom, setMapZoom] = useState(level === 2 ? 13 : 14)
   const [selectedLayer, setSelectedLayer] = useState<'satellite' | 'terrain' | 'street'>('terrain')
   const [showThreats, setShowThreats] = useState(true)
@@ -481,7 +488,15 @@ const MapPortal: React.FC<MapPortalProps> = ({ level, onLevelChange, onClose }) 
                     <Shield className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Toggle Assets</TooltipContent>
+                <TooltipPrimitive.Portal>
+                  <TooltipPrimitive.Content
+                    className="bg-gray-900 text-white border border-gray-700 shadow-lg rounded-md px-3 py-1.5 text-xs z-50"
+                    sideOffset={5}
+                  >
+                    Toggle Assets
+                    <TooltipPrimitive.Arrow className="fill-gray-900" />
+                  </TooltipPrimitive.Content>
+                </TooltipPrimitive.Portal>
               </Tooltip>
               
               <Tooltip>
@@ -495,7 +510,15 @@ const MapPortal: React.FC<MapPortalProps> = ({ level, onLevelChange, onClose }) 
                     <Target className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Toggle Threats</TooltipContent>
+                <TooltipPrimitive.Portal>
+                  <TooltipPrimitive.Content
+                    className="bg-gray-900 text-white border border-gray-700 shadow-lg rounded-md px-3 py-1.5 text-xs z-50"
+                    sideOffset={5}
+                  >
+                    Toggle Threats
+                    <TooltipPrimitive.Arrow className="fill-gray-900" />
+                  </TooltipPrimitive.Content>
+                </TooltipPrimitive.Portal>
               </Tooltip>
               
               <Tooltip>
@@ -509,7 +532,15 @@ const MapPortal: React.FC<MapPortalProps> = ({ level, onLevelChange, onClose }) 
                     <Layers className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Toggle Zones</TooltipContent>
+                <TooltipPrimitive.Portal>
+                  <TooltipPrimitive.Content
+                    className="bg-gray-900 text-white border border-gray-700 shadow-lg rounded-md px-3 py-1.5 text-xs z-50"
+                    sideOffset={5}
+                  >
+                    Toggle Zones
+                    <TooltipPrimitive.Arrow className="fill-gray-900" />
+                  </TooltipPrimitive.Content>
+                </TooltipPrimitive.Portal>
               </Tooltip>
             </div>
           </div>

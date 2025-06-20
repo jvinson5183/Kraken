@@ -8,6 +8,7 @@ import { Portal } from './Portal'
 import MapPortal from './portals/MapPortal'
 import CameraPortal from './portals/SimpleCameraPortal'
 import TimelinePortal from './portals/TimelinePortal'
+import AlertsPortal from './portals/AlertsPortal'
 import DataViewPortal from './portals/DataViewPortal'
 
 interface FullscreenPortalProps {
@@ -237,6 +238,18 @@ function renderFullscreenPortalContent(portal: PortalData, onClose: () => void) 
     case 'timeline':
       return (
         <TimelinePortal 
+          level={3} 
+          onLevelChange={(level) => {
+            if (level === 2) {
+              onClose()
+            }
+          }} 
+          onClose={onClose} 
+        />
+      )
+    case 'alerts':
+      return (
+        <AlertsPortal 
           level={3} 
           onLevelChange={(level) => {
             if (level === 2) {
