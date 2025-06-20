@@ -10,6 +10,7 @@ import CameraPortal from './portals/SimpleCameraPortal'
 import TimelinePortal from './portals/TimelinePortal'
 import AlertsPortal from './portals/AlertsPortal'
 import DataViewPortal from './portals/DataViewPortal'
+import WeatherPortalComponent from './portals/WeatherPortal'
 
 interface FullscreenPortalProps {
   portal: PortalData
@@ -198,7 +199,7 @@ function renderFullscreenPortalContent(portal: PortalData, onClose: () => void) 
     case 'system':
       return <FullscreenSystemPortal />
     case 'weather':
-      return <FullscreenWeatherPortal />
+      return <WeatherPortalComponent level={3} onLevelChange={() => {}} onClose={onClose} />
     case 'map':
       return (
         <MapPortal 

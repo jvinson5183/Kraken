@@ -17,6 +17,7 @@ import {
   EDGE_TRAY_CONFIG, 
   PortalData 
 } from './constants/portalConfigs.tsx'
+import { WeatherPortalProvider } from './portals/WeatherPortal'
 
 // Portal configurations imported from constants file
 
@@ -56,7 +57,8 @@ export function JarvisInterface() {
   }
 
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 overflow-hidden">
+    <WeatherPortalProvider>
+      <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 overflow-hidden">
       {/* Classification Banner */}
       <ClassificationBanner />
 
@@ -165,6 +167,7 @@ export function JarvisInterface() {
       {/* Subtle corner accents */}
       <div className="absolute top-6 right-0 w-32 h-32 bg-gradient-to-bl from-gray-600/5 to-transparent pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-gray-600/5 to-transparent pointer-events-none" />
-    </div>
+      </div>
+    </WeatherPortalProvider>
   )
 }

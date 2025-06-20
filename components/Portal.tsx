@@ -122,6 +122,7 @@ import CameraPortal from './portals/SimpleCameraPortal'
 import NewTimelinePortal from './portals/TimelinePortal'
 import DataViewPortal from './portals/DataViewPortal'
 import AlertsPortal from './portals/AlertsPortal'
+import WeatherPortalComponent from './portals/WeatherPortal'
 
 interface PortalProps {
   portal: PortalData
@@ -135,7 +136,7 @@ export function Portal({ portal, onClose, onExpand }: PortalProps) {
       case 'system':
         return <SystemStatusPortal />
       case 'weather':
-        return <WeatherPortal />
+        return <WeatherPortalComponent level={2} onLevelChange={() => {}} onClose={onClose} />
       case 'calendar':
         return <CalendarPortal />
       case 'messages':
@@ -340,113 +341,7 @@ function SystemStatusPortal() {
   )
 }
 
-// Weather Portal - Level 2
-function WeatherPortal() {
-  const weatherData = {
-    current: { temp: 72, condition: 'Clear', humidity: 45, windSpeed: 8, windDir: 'NW' },
-    forecast: [
-      { time: '15:00', temp: 74, condition: 'Clear', icon: <Sun className="w-3 h-3" /> },
-      { time: '18:00', temp: 71, condition: 'Cloudy', icon: <CloudRain className="w-3 h-3" /> },
-      { time: '21:00', temp: 68, condition: 'Clear', icon: <Sun className="w-3 h-3" /> }
-    ]
-  }
 
-  const conditions = [
-    { label: 'Visibility', value: '10+ miles', status: 'GOOD', icon: <Eye className="w-3 h-3" /> },
-    { label: 'Pressure', value: '30.15 inHg', status: 'STABLE', icon: <Gauge className="w-3 h-3" /> },
-    { label: 'UV Index', value: '6 (High)', status: 'CAUTION', icon: <Sun className="w-3 h-3" /> }
-  ]
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'GOOD': return 'text-green-400'
-      case 'STABLE': return 'text-purple-400'
-      case 'CAUTION': return 'text-yellow-400'
-      case 'WARNING': return 'text-orange-400'
-      case 'CRITICAL': return 'text-red-400'
-      default: return 'text-gray-400'
-    }
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 mb-3">
-        <CloudRain className="w-4 h-4 text-gray-300" />
-        <div className="text-gray-200 text-xs">Weather Overview</div>
-      </div>
-
-      {/* Current Conditions */}
-      <div className="bg-gray-800/30 rounded p-2">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Sun className="w-4 h-4 text-yellow-400" />
-            <span className="text-sm text-gray-200">{weatherData.current.temp}°F</span>
-          </div>
-          <span className="text-xs text-gray-300">{weatherData.current.condition}</span>
-        </div>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="flex items-center gap-1">
-            <Droplets className="w-2 h-2 text-blue-400" />
-            <span className="text-gray-400">Humidity: {weatherData.current.humidity}%</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Wind className="w-2 h-2 text-gray-400" />
-            <span className="text-gray-400">Wind: {weatherData.current.windSpeed}mph {weatherData.current.windDir}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Hourly Forecast */}
-      <div>
-        <div className="text-xs text-purple-300 mb-2">3-Hour Forecast</div>
-        <div className="space-y-1">
-          {weatherData.forecast.map((item, index) => (
-            <div key={index} className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <div className="text-yellow-400">{item.icon}</div>
-                <span className="text-gray-300">{item.time}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-300">{item.temp}°F</span>
-                <span className="text-gray-500">{item.condition}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Environmental Conditions */}
-      <div className="border-t border-gray-700 pt-2">
-        <div className="text-xs text-purple-300 mb-2">Conditions</div>
-        <div className="space-y-1">
-          {conditions.map((condition, index) => (
-            <div key={index} className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-1">
-                <div className="text-gray-400">{condition.icon}</div>
-                <span className="text-gray-300">{condition.label}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-300">{condition.value}</span>
-                <span className={getStatusColor(condition.status)}>{condition.status}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="border-t border-gray-700 pt-2 text-xs">
-        <div className="flex justify-between">
-          <span className="text-gray-400">Data Source</span>
-          <span className="text-purple-400">NOAA Weather Satellite</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Last Update</span>
-          <span className="text-green-400">2 min ago</span>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // Implementing stubs for remaining portals to keep the response focused
 function CalendarPortal() { return <DefaultPortal title="Calendar" icon="📅" description="Mission scheduling and timeline management" /> }
