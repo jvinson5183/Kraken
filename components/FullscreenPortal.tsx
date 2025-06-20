@@ -6,6 +6,9 @@ import { X, Minimize2 } from 'lucide-react'
 import { PortalData } from './constants/portalConfigs'
 import { Portal } from './Portal'
 import MapPortal from './portals/MapPortal'
+import CameraPortal from './portals/SimpleCameraPortal'
+import TimelinePortal from './portals/TimelinePortal'
+import DataViewPortal from './portals/DataViewPortal'
 
 interface FullscreenPortalProps {
   portal: PortalData
@@ -54,6 +57,60 @@ export function FullscreenPortal({ portal, onClose }: FullscreenPortalProps) {
               <div className="text-center">
                 <div className="text-gray-400 text-xs">Threats Detected</div>
                 <div className="text-red-400 font-medium" id="map-threats-count">3</div>
+              </div>
+            </div>
+          )}
+          
+          {/* Status Information for Camera Portal */}
+          {portal.type === 'camera-capability' && (
+            <div className="flex items-center gap-4 text-sm border-l border-gray-600 pl-6">
+              <div className="text-center">
+                <div className="text-gray-400 text-xs">Last Update</div>
+                <div className="text-gray-200 font-mono text-xs" id="camera-last-update">--:--:--</div>
+              </div>
+              <div className="text-center">
+                <div className="text-gray-400 text-xs">Active Feeds</div>
+                <div className="text-green-400 font-medium" id="camera-feeds-count">2</div>
+              </div>
+              <div className="text-center">
+                <div className="text-gray-400 text-xs">Tracked Threats</div>
+                <div className="text-orange-400 font-medium" id="camera-threats-count">2</div>
+              </div>
+            </div>
+          )}
+          
+          {/* Status Information for Timeline Portal */}
+          {portal.type === 'timeline' && (
+            <div className="flex items-center gap-4 text-sm border-l border-gray-600 pl-6">
+              <div className="text-center">
+                <div className="text-gray-400 text-xs">Live Events</div>
+                <div className="text-green-400 font-medium" id="timeline-events-count">12</div>
+              </div>
+              <div className="text-center">
+                <div className="text-gray-400 text-xs">Critical Events</div>
+                <div className="text-red-400 font-medium" id="timeline-critical-count">3</div>
+              </div>
+              <div className="text-center">
+                <div className="text-gray-400 text-xs">Time Range</div>
+                <div className="text-purple-300 font-medium" id="timeline-range">24H</div>
+              </div>
+            </div>
+          )}
+          
+          {/* Status Information for Data View Portal */}
+          {portal.type === 'data-view' && (
+            <div className="flex items-center gap-4 text-sm border-l border-gray-600 pl-6">
+              <div className="text-center">
+                <div className="text-gray-400 text-xs">Data Streams</div>
+                <div className="text-green-400 font-medium" id="data-streams-count">8</div>
+              </div>
+              <div className="text-center">
+                <div className="text-gray-400 text-xs">Systems Online</div>
+                <div className="text-blue-400 font-medium" id="systems-online-count">6/8</div>
+              </div>
+              <div className="text-center">
+                <div className="text-gray-400 text-xs">Anomalies</div>
+                <div className="text-orange-400 font-medium" id="anomalies-count">2</div>
               </div>
             </div>
           )}
@@ -144,6 +201,42 @@ function renderFullscreenPortalContent(portal: PortalData, onClose: () => void) 
     case 'map':
       return (
         <MapPortal 
+          level={3} 
+          onLevelChange={(level) => {
+            if (level === 2) {
+              onClose()
+            }
+          }} 
+          onClose={onClose} 
+        />
+      )
+    case 'camera-capability':
+      return (
+        <CameraPortal 
+          level={3} 
+          onLevelChange={(level) => {
+            if (level === 2) {
+              onClose()
+            }
+          }} 
+          onClose={onClose} 
+        />
+      )
+    case 'data-view':
+      return (
+        <DataViewPortal 
+          level={3} 
+          onLevelChange={(level) => {
+            if (level === 2) {
+              onClose()
+            }
+          }} 
+          onClose={onClose} 
+        />
+      )
+    case 'timeline':
+      return (
+        <TimelinePortal 
           level={3} 
           onLevelChange={(level) => {
             if (level === 2) {

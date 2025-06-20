@@ -118,6 +118,9 @@ import { PortalData } from './constants/portalConfigs'
 import { ImageWithFallback } from './figma/ImageWithFallback'
 import { Timeline } from './Timeline'
 import MapPortal from './portals/MapPortal'
+import CameraPortal from './portals/SimpleCameraPortal'
+import NewTimelinePortal from './portals/TimelinePortal'
+import DataViewPortal from './portals/DataViewPortal'
 
 interface PortalProps {
   portal: PortalData
@@ -155,15 +158,15 @@ export function Portal({ portal, onClose, onExpand }: PortalProps) {
       case 'map':
         return <MapPortal level={2} onLevelChange={() => {}} onClose={onClose} />
       case 'timeline':
-        return <TimelinePortal />
+        return <NewTimelinePortal level={2} onLevelChange={() => {}} onClose={onClose} />
       case 'messenger':
         return <MessengerPortal />
       case 'alerts':
         return <AlertsPortal />
       case 'camera-capability':
-        return <CameraCapabilityPortal />
+        return <CameraPortal level={2} onLevelChange={() => {}} onClose={onClose} />
       case 'data-view':
-        return <DataViewPortal />
+        return <DataViewPortal level={2} onLevelChange={() => {}} onClose={onClose} />
       // AI Engine Portals
       case 'confidence-scoring':
         return <ConfidenceScoringPortal />
@@ -455,11 +458,11 @@ function CyberAttackSurfacePortal() { return <DefaultPortal title="Cyber Securit
 function MediaPortal() { return <DefaultPortal title="Media" icon="🎵" description="Digital asset management and playback" /> }
 function DocumentsPortal() { return <DefaultPortal title="Documents" icon="📄" description="Secure document library and sharing" /> }
 function SettingsPortal() { return <DefaultPortal title="Settings" icon="⚙️" description="System configuration and preferences" /> }
-function TimelinePortal() { return <Timeline /> }
+
 function MessengerPortal() { return <DefaultPortal title="Messenger" icon="💬" description="Real-time secure messaging" /> }
 function AlertsPortal() { return <DefaultPortal title="Alerts" icon="🚨" description="Alert center and notification management" /> }
-function CameraCapabilityPortal() { return <DefaultPortal title="Cameras" icon="📹" description="Surveillance and reconnaissance feeds" /> }
-function DataViewPortal() { return <DefaultPortal title="Data View" icon="📊" description="Intelligence data visualization" /> }
+// CameraCapabilityPortal now uses the dedicated CameraPortal component
+
 
 // AI Engine Portals - Keep existing implementations
 function ConfidenceScoringPortal() {
