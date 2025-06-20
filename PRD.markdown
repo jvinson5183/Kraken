@@ -255,7 +255,60 @@ The Camera Portal integrates visual feeds for threat confirmation.
 - **Security**:
   - Encrypt streams with role-based access controls.
 
-## 6. Confidence Scoring Engine
+## 6. Data View Portal
+The **Data View Portal** provides a comprehensive interface for accessing, analyzing, and managing raw and processed data from sensors, effectors, and integrated systems. It enables operators to monitor system performance, verify data integrity, and generate reports, enhancing situational awareness and operational efficiency.
+
+### Level 2: Data View Portal
+- **Basic Data Access**:
+  - Display real-time data streams from primary sensors (e.g., Sentinel radar, EO/IR) in tabular or list format.
+  - Show key data points (e.g., threat coordinates, sensor status, detection timestamps).
+- **Data Filtering**:
+  - Allow basic filtering by data source (e.g., radar, IFF) or event type (e.g., C-UAS, C-RAM).
+  - Provide simple search functionality for recent data (last 1 hour).
+- **System Health Monitoring**:
+  - Show basic sensor and effector status (e.g., online/offline, error codes).
+  - Display connectivity status for core Army systems (e.g., IBCS).
+- **Data Export**:
+  - Export data snapshots in CSV format for basic reporting.
+- **Integration**:
+  - Link data to Map Portal for spatial context and Alerts Portal for triggered notifications.
+- **User Interface**:
+  - Provide a simple, tabular dashboard accessible on tablets with online connectivity.
+- **Performance**:
+  - Update data displays every 0.5s to support real-time operations.
+
+### Level 3: Data View Portal
+- **Comprehensive Data Access**:
+  - Aggregate and display raw and processed data from all integrated sensors (e.g., AN/TPQ-53, EO/IR, Link 16) and effectors (e.g., Coyote interceptors, directed energy weapons).
+  - Present data in customizable formats (e.g., tables, graphs, heatmaps) with drill-down capabilities for detailed metrics (e.g., signal strength, detection confidence).
+- **Advanced Data Analysis**:
+  - Enable advanced filtering by data source, time range, threat type, or system component.
+  - Support search with regex or natural language queries for historical and real-time data.
+  - Provide AI-driven anomaly detection to highlight unusual data patterns (e.g., sensor drift, jamming).
+- **System Health and Diagnostics**:
+  - Monitor detailed system metrics (e.g., sensor calibration, effector ammo levels, network latency).
+  - Offer diagnostic tools to troubleshoot issues, with recommendations for corrective actions (e.g., switch to backup sensor).
+- **Data Visualization**:
+  - Generate dynamic visualizations (e.g., time-series graphs, data distribution charts) for operator analysis.
+  - Link data points to Map Portal tracks, Timeline Portal events, and Camera Portal feeds for cross-portal correlation.
+- **Data Export and Reporting**:
+  - Export data in multiple formats (e.g., CSV, JSON, PDF) with customizable templates for after-action reports.
+  - Support automated report generation for mission summaries, compliant with Army and NATO standards.
+- **Interoperability**:
+  - Integrate with NATO systems (e.g., Link 16, JTIDS), IBCS, AMDWS, and AFATDS for seamless data sharing.
+  - Support API access for third-party systems to pull or push data.
+- **Security**:
+  - Encrypt all data streams and storage, compliant with DoD cybersecurity standards.
+  - Implement role-based access controls to restrict sensitive data (e.g., raw IFF codes) to authorized users.
+- **Mobile and Offline Support**:
+  - Operate on tablets with offline data caching for low-connectivity environments.
+  - Sync cached data when connectivity is restored.
+- **Performance**:
+  - Update data in <0.25s, handling high-density scenarios (e.g., drone swarms).
+  - Optimize for low-latency processing in multi-domain operations.
+
+### AI Engine Portals (Right Tray)
+## 1. Confidence Scoring Engine
 The Confidence Scoring Engine assesses reliability of detections and plans.
 
 ### Level 2: Confidence Scoring Engine
@@ -287,11 +340,6 @@ The Confidence Scoring Engine assesses reliability of detections and plans.
 - **Security and Ethics**:
   - Ensure auditable AI models, compliant with DoD ethics guidelines.
 
-### AI Engine Portals (Right Tray)
-1. **Confidence Scoring Engine**:
-   - Icon: Custom Group-2016-40 (Figma).
-   - Level 2: Data source confidence scores, trend indicators.
-   - Level 3: Detailed reliability metrics, model performance analysis.
 2. **Prioritization Engine**:
    - Icon: Custom Group-2016-62 (Figma).
    - Level 2: Priority queue, urgency indicators.
