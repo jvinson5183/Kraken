@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   AlertTriangle, 
@@ -44,43 +44,8 @@ import { Badge } from '../ui/badge'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
+import { useAlertsState, type ThreatAlert, type SystemAlert, type AlertSettings } from '../hooks/useAlertsState'
 // Using simple button toggles instead of checkbox due to import issues
-
-interface ThreatAlert {
-  id: string
-  timestamp: Date
-  type: 'drone' | 'aircraft' | 'missile' | 'ram' | 'unknown'
-  severity: 'critical' | 'high' | 'medium' | 'low'
-  title: string
-  description: string
-  location: string
-  coordinates?: [number, number]
-  speed?: number
-  heading?: number
-  altitude?: number
-  trajectory?: [number, number][]
-  confidence: number
-  source: string
-  status: 'active' | 'resolved' | 'acknowledged' | 'escalated'
-  threatLevel: 'imminent' | 'probable' | 'possible' | 'unlikely'
-  estimatedImpact?: Date
-  countermeasures?: string[]
-}
-
-interface SystemAlert {
-  id: string
-  timestamp: Date
-  type: 'sensor' | 'effector' | 'network' | 'power' | 'communication' | 'cyber' | 'ammo' | 'interop'
-  severity: 'critical' | 'high' | 'medium' | 'low' | 'info'
-  title: string
-  description: string
-  system: string
-  component?: string
-  status: 'active' | 'resolved' | 'maintenance' | 'acknowledged'
-  affectedSystems?: string[]
-  remediationSteps?: string[]
-  estimatedRepair?: Date
-}
 
 interface AlertsPortalProps {
   level: 2 | 3
@@ -88,116 +53,7 @@ interface AlertsPortalProps {
   onClose?: () => void
 }
 
-interface AlertSettings {
-  audioEnabled: boolean
-  visualEnabled: boolean
-  hapticEnabled: boolean
-  autoAcknowledge: boolean
-  escalationTimeout: number
-  priorityFilter: string
-  roleBasedFilter: string
-}
 
-// Sample threat alerts - replace with real sensor data
-const SAMPLE_THREAT_ALERTS: ThreatAlert[] = [
-  {
-    id: 'threat-001',
-    timestamp: new Date(Date.now() - 2 * 60 * 1000),
-    type: 'drone',
-    severity: 'high',
-    title: 'Hostile UAS Detected',
-    description: 'Multiple small drones approaching from northeast sector',
-    location: 'Grid 345.127',
-    coordinates: [32.0853, 34.7818],
-    speed: 45,
-    heading: 225,
-    altitude: 150,
-    confidence: 92,
-    source: 'Sentinel Radar',
-    status: 'active',
-    threatLevel: 'probable',
-    estimatedImpact: new Date(Date.now() + 3 * 60 * 1000),
-    countermeasures: ['C-UAS Engagement', 'Electronic Jamming']
-  },
-  {
-    id: 'threat-002',
-    timestamp: new Date(Date.now() - 5 * 60 * 1000),
-    type: 'missile',
-    severity: 'critical',
-    title: 'Incoming Ballistic Threat',
-    description: 'Long-range ballistic missile detected on intercept course',
-    location: 'Grid 234.889',
-    coordinates: [32.4000, 35.2000],
-    speed: 1200,
-    heading: 180,
-    altitude: 25000,
-    confidence: 98,
-    source: 'TPY-2 Radar',
-    status: 'active',
-    threatLevel: 'imminent',
-    estimatedImpact: new Date(Date.now() + 8 * 60 * 1000),
-    countermeasures: ['Iron Dome', 'David\'s Sling', 'Arrow System']
-  },
-  {
-    id: 'threat-003',
-    timestamp: new Date(Date.now() - 10 * 60 * 1000),
-    type: 'aircraft',
-    severity: 'medium',
-    title: 'Unknown Aircraft Contact',
-    description: 'Unidentified aircraft in restricted airspace',
-    location: 'Zone Alpha-7',
-    coordinates: [32.1200, 34.8500],
-    speed: 350,
-    heading: 90,
-    altitude: 8000,
-    confidence: 75,
-    source: 'Air Defense Radar',
-    status: 'acknowledged',
-    threatLevel: 'possible',
-    countermeasures: ['Intercept Mission', 'IFF Interrogation']
-  }
-]
-
-// Sample system alerts
-const SAMPLE_SYSTEM_ALERTS: SystemAlert[] = [
-  {
-    id: 'sys-001',
-    timestamp: new Date(Date.now() - 15 * 60 * 1000),
-    type: 'sensor',
-    severity: 'critical',
-    title: 'Primary Radar Offline',
-    description: 'Sentinel radar system has lost power and is not responding',
-    system: 'Sentinel Radar Array',
-    component: 'Power Supply Unit',
-    status: 'active',
-    affectedSystems: ['Threat Detection', 'Air Picture'],
-    remediationSteps: ['Check power connections', 'Reset system', 'Contact maintenance'],
-    estimatedRepair: new Date(Date.now() + 30 * 60 * 1000)
-  },
-  {
-    id: 'sys-002',
-    timestamp: new Date(Date.now() - 8 * 60 * 1000),
-    type: 'network',
-    severity: 'high',
-    title: 'Link 16 Connection Degraded',
-    description: 'Intermittent connectivity issues with tactical data network',
-    system: 'Link 16 Terminal',
-    status: 'active',
-    affectedSystems: ['Data Sharing', 'Situational Awareness'],
-    remediationSteps: ['Check network cables', 'Restart terminal', 'Switch to backup']
-  },
-  {
-    id: 'sys-003',
-    timestamp: new Date(Date.now() - 20 * 60 * 1000),
-    type: 'ammo',
-    severity: 'medium',
-    title: 'Low Interceptor Count',
-    description: 'Iron Dome battery has less than 25% interceptors remaining',
-    system: 'Iron Dome Battery Alpha',
-    status: 'acknowledged',
-    affectedSystems: ['Air Defense Capability']
-  }
-]
 
 const getThreatIcon = (type: string, severity: string) => {
   const colorClass = severity === 'critical' ? 'text-red-400' : 
@@ -284,22 +140,26 @@ const formatTimeAgo = (timestamp: Date) => {
 }
 
 const AlertsPortal: React.FC<AlertsPortalProps> = ({ level, onLevelChange, onClose }) => {
-  const [threatAlerts] = useState<ThreatAlert[]>(SAMPLE_THREAT_ALERTS)
-  const [systemAlerts] = useState<SystemAlert[]>(SAMPLE_SYSTEM_ALERTS)
-  const [selectedAlertType, setSelectedAlertType] = useState<string>('all')
-  const [selectedSeverity, setSelectedSeverity] = useState<string>('all')
-  const [showResolved, setShowResolved] = useState(false)
-  const [settings, setSettings] = useState<AlertSettings>({
-    audioEnabled: true,
-    visualEnabled: true,
-    hapticEnabled: false,
-    autoAcknowledge: false,
-    escalationTimeout: 300,
-    priorityFilter: 'medium',
-    roleBasedFilter: 'tactical'
-  })
-  const [sortBy, setSortBy] = useState<string>('timestamp')
-  const [refreshInterval, setRefreshInterval] = useState(5000)
+  // Use persistent state hook to maintain state across level changes (Level 2 ↔ Level 3)
+  const {
+    threatAlerts,
+    systemAlerts,
+    selectedAlertType,
+    selectedSeverity,
+    showResolved,
+    settings,
+    sortBy,
+    refreshInterval,
+    setSelectedAlertType,
+    setSelectedSeverity,
+    setShowResolved,
+    setSettings,
+    setSortBy,
+    setRefreshInterval,
+    handleAcknowledgeAlert,
+    handleResolveAlert,
+    handleEscalateAlert
+  } = useAlertsState()
 
   const allAlerts = [...threatAlerts, ...systemAlerts].sort((a, b) => 
     sortBy === 'timestamp' ? b.timestamp.getTime() - a.timestamp.getTime() :
@@ -330,20 +190,7 @@ const AlertsPortal: React.FC<AlertsPortalProps> = ({ level, onLevelChange, onClo
     return () => clearInterval(interval)
   }, [refreshInterval])
 
-  const handleAcknowledgeAlert = (alertId: string) => {
-    console.log(`Acknowledging alert: ${alertId}`)
-    // In real implementation, update alert status
-  }
 
-  const handleResolveAlert = (alertId: string) => {
-    console.log(`Resolving alert: ${alertId}`)
-    // In real implementation, update alert status
-  }
-
-  const handleEscalateAlert = (alertId: string) => {
-    console.log(`Escalating alert: ${alertId}`)
-    // In real implementation, escalate alert
-  }
 
   const exportAlerts = () => {
     const data = JSON.stringify(filteredAlerts, null, 2)

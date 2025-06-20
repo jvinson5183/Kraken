@@ -13,7 +13,7 @@ The AlertsPortal has been implemented following the PRD specifications with both
 - **Framer Motion Animations**: Smooth transitions and hover effects following the established spring physics configuration
 - **Radix UI Components**: Uses established UI primitives (Switch, Select, Tooltip, Badge) for consistency
 - **Color System**: Follows military aesthetic with severity-based color coding (red for critical, orange for high, yellow for medium, blue for low)
-- **State Management**: Local state management with filtering, sorting, and settings configuration
+- **State Management**: Persistent state management using custom hook (useAlertsState) to maintain state across Level 2 ↔ Level 3 transitions
 - **Responsive Design**: Two-column layout in Level 3 with main content and settings panel
 
 #### Components:
@@ -27,6 +27,15 @@ The AlertsPortal has been implemented following the PRD specifications with both
 - Follows established portal lifecycle (acknowledge, resolve, escalate actions)
 - Export functionality for operational reporting
 - Real-time refresh capability with configurable intervals
+
+#### State Persistence Solution:
+**Problem**: State was being reset when toggling between Level 2 and Level 3 views because each level creates a new component instance.
+
+**Solution**: Implemented `useAlertsState` custom hook that maintains global state outside of component lifecycle:
+- **Global State Store**: Module-level state object that persists across component mounts/unmounts
+- **Custom Hook**: Provides centralized state management with actions for all AlertsPortal operations
+- **State Maintained**: Filters, sorting, settings, alert acknowledgments, and resolved states persist across level changes
+- **Consistent Experience**: Users can now seamlessly switch between Level 2 and Level 3 without losing their work
 
 ## Technology Stack
 
