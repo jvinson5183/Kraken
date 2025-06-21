@@ -1,5 +1,7 @@
-import { JarvisInterface } from './components/JarvisInterface'
+import { KrakenInterface } from './components/JarvisInterface'
 
-export default function App() {
-  return <JarvisInterface />
+function App() {
+  return <KrakenInterface />
 }
+
+export default App

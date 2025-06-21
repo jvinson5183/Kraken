@@ -5,7 +5,7 @@ import { PortalData } from '../constants/portalConfigs.tsx'
  * Custom hook for managing portal state
  * Handles opening, closing, and positioning of portals
  */
-export function usePortalState() {
+export function usePortalState(isAIPanelActive?: boolean, onAIPanelClose?: () => void) {
   const [openPortals, setOpenPortals] = useState<PortalData[]>([])
   const [fullscreenPortal, setFullscreenPortal] = useState<PortalData | null>(null)
 
@@ -55,6 +55,10 @@ export function usePortalState() {
 
   const openFullscreenPortal = (portal: PortalData) => {
     setFullscreenPortal(portal)
+    // Close AI panel when opening fullscreen portal (level 3)
+    if (onAIPanelClose) {
+      onAIPanelClose()
+    }
   }
 
   const closeFullscreenPortal = () => {
@@ -65,19 +69,47 @@ export function usePortalState() {
     const portal = openPortals.find(p => p.id === portalId) || allPortals.find(p => p.id === portalId)
     if (portal) {
       setFullscreenPortal(portal)
+      // Close AI panel when expanding to fullscreen (level 3)
+      if (onAIPanelClose) {
+        onAIPanelClose()
+      }
     }
   }
 
   const getNextAvailablePosition = () => {
     const occupiedPositions = openPortals.map(p => `${p.position?.row}-${p.position?.col}`)
     
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 3; col++) {
-        if (!occupiedPositions.includes(`${row}-${col}`)) {
-          return { row, col }
-        }
+    // Define preferred positions when AI panel is active
+    // Grid layout (0-indexed): 0 1 2
+    //                          3 4 5  
+    //                          6 7 8
+    // When AI panel is active, use positions 2, 3, 5, 6, 7 (grid spaces 2, 3, 5, 6, 7 in 1-indexed)
+    const preferredPositions = isAIPanelActive 
+      ? [
+          { row: 0, col: 1 }, // Position 1 -> Grid space 2
+          { row: 0, col: 2 }, // Position 2 -> Grid space 3
+          { row: 1, col: 1 }, // Position 4 -> Grid space 5
+          { row: 1, col: 2 }, // Position 5 -> Grid space 6
+          { row: 2, col: 0 }, // Position 6 -> Grid space 7
+          { row: 2, col: 1 }, // Position 7 -> Grid space 8
+          { row: 2, col: 2 }, // Position 8 -> Grid space 9
+          { row: 1, col: 0 }, // Position 3 -> Grid space 4 (fallback)
+          { row: 0, col: 0 }, // Position 0 -> Grid space 1 (last resort)
+        ]
+      : [
+          // Normal order when AI panel is not active
+          { row: 0, col: 0 }, { row: 0, col: 1 }, { row: 0, col: 2 },
+          { row: 1, col: 0 }, { row: 1, col: 1 }, { row: 1, col: 2 },
+          { row: 2, col: 0 }, { row: 2, col: 1 }, { row: 2, col: 2 }
+        ]
+    
+    for (const position of preferredPositions) {
+      const positionKey = `${position.row}-${position.col}`
+      if (!occupiedPositions.includes(positionKey)) {
+        return position
       }
     }
+    
     return null
   }
 

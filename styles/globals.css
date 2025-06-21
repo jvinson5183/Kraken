@@ -216,8 +216,8 @@ html {
   font-size: var(--font-size);
 }
 
-/**
- * Custom scrollbar styling for JARVIS interface with purple/grayscale theme
+/*
+ * Custom scrollbar styling for Kraken interface with purple/grayscale theme
  */
 @layer base {
   /* Webkit-based browsers (Chrome, Safari, Edge) */
@@ -274,8 +274,8 @@ html {
   }
 }
 
-/**
- * JARVIS Kraken-themed purple/grayscale color overrides
+/*
+ * Kraken-themed purple/grayscale color overrides
  */
 @layer base {
   /* Primary purple accent colors matching Kraken logo */

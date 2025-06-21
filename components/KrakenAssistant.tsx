@@ -2,8 +2,31 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Mic, AlertTriangle, X } from 'lucide-react'
+import { Mic, MicOff, AlertTriangle, X, Send, Loader2 } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
+import { KrakenAI, CommandResult } from './services/jarvisAI'
+import { PortalData } from './constants/portalConfigs'
+
+// Animated three-dot loader component
+const ThreeDotsLoader = () => (
+  <div className="flex items-center space-x-1 py-1">
+    {[0, 1, 2].map((index) => (
+      <motion.div
+        key={index}
+        className="w-1.5 h-1.5 bg-purple-400/70 rounded-full"
+        animate={{
+          y: [0, -4, 0],
+        }}
+        transition={{
+          duration: 0.6,
+          repeat: Infinity,
+          delay: index * 0.2,
+          ease: "easeInOut"
+        }}
+      />
+    ))}
+  </div>
+)
 
 interface KrakenAssistantProps {
   hasOpenPortals: boolean
@@ -12,6 +35,12 @@ interface KrakenAssistantProps {
   style?: React.CSSProperties
   alertMessage?: string
   onAlertDismiss?: () => void
+  krakenAI: KrakenAI
+  availablePortals: PortalData[]
+  onCommandExecuted: (result: CommandResult) => void
+  onAIPanelStateChange?: (isActive: boolean) => void
+  shouldCloseAIPanel?: boolean
+  shouldRestoreAIPanel?: boolean
 }
 
 interface KrakenEyeProps {
@@ -21,12 +50,20 @@ interface KrakenEyeProps {
   containerRef?: React.RefObject<HTMLDivElement>
 }
 
+interface ChatMessage {
+  id: string
+  type: 'user' | 'kraken'
+  content: string
+  timestamp: Date
+  isExecuting?: boolean
+}
+
 // Enhanced Kraken Eye Component with random movement and mouse tracking
 function KrakenEye({ mousePosition, size = 80, isInCenter = false, containerRef }: KrakenEyeProps) {
   const [randomPosition, setRandomPosition] = useState({ x: 0, y: 0 })
   const [isMouseMoving, setIsMouseMoving] = useState(false)
-  const mouseTimeoutRef = useRef<number>()
-  const randomIntervalRef = useRef<number>()
+  const mouseTimeoutRef = useRef<NodeJS.Timeout>()
+  const randomIntervalRef = useRef<NodeJS.Timeout>()
   const prevMousePosition = useRef(mousePosition)
 
   const centerX = size / 2
@@ -169,27 +206,111 @@ function KrakenEye({ mousePosition, size = 80, isInCenter = false, containerRef 
   )
 }
 
-// Search Field Component
-function KrakenSearchField({ onSearch, onFocusChange }: { 
-  onSearch?: (query: string) => void
+// Search Field Component with AI integration
+function KrakenSearchField({ 
+  onSearch, 
+  onFocusChange, 
+  krakenAI, 
+  availablePortals, 
+  onCommandExecuted 
+}: { 
+  onSearch?: (query: string, result?: CommandResult) => void
   onFocusChange?: (isFocused: boolean) => void 
+  krakenAI: KrakenAI
+  availablePortals: PortalData[]
+  onCommandExecuted: (result: CommandResult) => void
 }) {
   const [query, setQuery] = useState('')
   const [isListening, setIsListening] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      if (SpeechRecognition) {
+        try {
+          recognitionRef.current = new SpeechRecognition()
+          recognitionRef.current.continuous = false
+          recognitionRef.current.interimResults = false
+          recognitionRef.current.lang = 'en-US'
+          
+          recognitionRef.current.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript
+            setQuery(transcript)
+            setIsListening(false)
+            // Auto-submit voice commands
+            processCommand(transcript)
+          }
+          
+          recognitionRef.current.onerror = (event: any) => {
+            console.error('Speech recognition error:', event.error)
+            setIsListening(false)
+          }
+          
+          recognitionRef.current.onend = () => {
+            setIsListening(false)
+          }
+        } catch (error) {
+          console.warn('Speech recognition initialization failed:', error)
+        }
+      }
+    }
+  }, [])
+
+  const processCommand = async (command: string) => {
+    if (!command.trim() || !krakenAI.isReady()) return
+
+    setIsProcessing(true)
+    
+    try {
+      const result = await krakenAI.processCommand(command, availablePortals)
+      
+      // Call the search callback FIRST to set AI panel state
+      onSearch?.(command, result)
+      
+      if (result.success && result.action) {
+        onCommandExecuted(result)
+      }
+      
+    } catch (error) {
+      console.error('Command processing error:', error)
+      // Still call search callback even on error
+      onSearch?.(command)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (query.trim()) {
-      onSearch?.(query.trim())
+      processCommand(query.trim())
       setQuery('')
     }
   }
 
   const handleVoiceInput = () => {
-    // Voice input functionality will be implemented later
-    setIsListening(!isListening)
-    console.log('Voice input toggled:', !isListening)
+    if (!recognitionRef.current) {
+      alert('Speech recognition not supported in this browser.')
+      return
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop()
+      setIsListening(false)
+    } else {
+      try {
+        recognitionRef.current.start()
+        setIsListening(true)
+      } catch (error) {
+        console.error('Failed to start speech recognition:', error)
+        setIsListening(false)
+      }
+    }
   }
 
   const handleFocus = () => {
@@ -217,31 +338,322 @@ function KrakenSearchField({ onSearch, onFocusChange }: {
     >
       <form onSubmit={handleSubmit} className="relative">
         <input
+          ref={inputRef}
           type="text"
           value={query}
           onChange={handleChange}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          placeholder="Ask Kraken anything..."
-          className="w-96 h-12 px-6 pr-14 bg-gray-900/90 backdrop-blur-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all duration-200"
+          placeholder={krakenAI.isReady() ? "Ask Kraken AI anything..." : "Configure API key first"}
+          disabled={isProcessing || !krakenAI.isReady()}
+          className="w-96 h-12 px-6 pr-20 bg-gray-900/90 backdrop-blur-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all duration-200"
           style={{ 
             border: '1px solid rgba(139, 92, 246, 0.5)',
             borderRadius: '24px' 
           }}
         />
         
+        {/* Voice Input Button */}
+        {recognitionRef.current && (
+          <button
+            type="button"
+            onClick={handleVoiceInput}
+            disabled={isProcessing || !krakenAI.isReady()}
+            className={`absolute right-12 top-1/2 transform -translate-y-1/2 p-2 rounded-full transition-colors duration-200 ${
+              isListening 
+                ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
+                : 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30'
+            }`}
+          >
+            {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          </button>
+        )}
+
+        {/* Submit Button */}
         <button
-          type="button"
-          onClick={handleVoiceInput}
-          className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-2 rounded-full transition-colors duration-200 ${
-            isListening 
-              ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
-              : 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30'
-          }`}
+          type="submit"
+          disabled={!query.trim() || isProcessing || !krakenAI.isReady()}
+          className="absolute right-3 top-1/2 transform -translate-y-1/2 p-2 rounded-full bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 disabled:opacity-50 transition-colors duration-200"
         >
-          <Mic className="w-4 h-4" />
+          {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
         </button>
       </form>
+
+      {/* Status indicators */}
+      <div className="mt-2 text-xs text-gray-400 text-center">
+        {!krakenAI.isReady() && (
+          <span className="text-yellow-400">⚠️ AI service not initialized</span>
+        )}
+        {isListening && (
+          <span className="text-red-400">🎤 Listening...</span>
+        )}
+        {isProcessing && (
+          <div className="flex items-center justify-center">
+            <ThreeDotsLoader />
+          </div>
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
+// AI Command Panel for top-left position
+function AICommandPanel({ 
+  krakenAI, 
+  availablePortals, 
+  onCommandExecuted, 
+  onClose,
+  conversationHistory,
+  onUpdateConversation
+}: {
+  krakenAI: KrakenAI
+  availablePortals: PortalData[]
+  onCommandExecuted: (result: CommandResult) => void
+  onClose: () => void
+  conversationHistory: ChatMessage[]
+  onUpdateConversation: (messages: ChatMessage[]) => void
+}) {
+  const [inputText, setInputText] = useState('')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [isListening, setIsListening] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const recognitionRef = useRef<any>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Auto-scroll to latest message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [conversationHistory])
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      if (SpeechRecognition) {
+        try {
+          recognitionRef.current = new SpeechRecognition()
+          recognitionRef.current.continuous = false
+          recognitionRef.current.interimResults = false
+          recognitionRef.current.lang = 'en-US'
+          
+          recognitionRef.current.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript
+            setInputText(transcript)
+            setIsListening(false)
+            // Auto-submit voice commands
+            processCommand(transcript)
+          }
+          
+          recognitionRef.current.onerror = (event: any) => {
+            console.error('Speech recognition error:', event.error)
+            setIsListening(false)
+          }
+          
+          recognitionRef.current.onend = () => {
+            setIsListening(false)
+          }
+        } catch (error) {
+          console.warn('Speech recognition initialization failed:', error)
+        }
+      }
+    }
+  }, [])
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert('Speech recognition not supported in this browser.')
+      return
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop()
+      setIsListening(false)
+    } else {
+      try {
+        recognitionRef.current.start()
+        setIsListening(true)
+      } catch (error) {
+        console.error('Failed to start speech recognition:', error)
+        setIsListening(false)
+      }
+    }
+  }
+
+  const processCommand = async (command: string) => {
+    if (!command.trim() || !krakenAI.isReady()) return
+
+    // Add user message
+    const userMessage: ChatMessage = {
+      id: Date.now().toString() + '_user',
+      type: 'user',
+      content: command,
+      timestamp: new Date()
+    }
+
+    onUpdateConversation([...conversationHistory, userMessage])
+    setInputText('')
+    setIsProcessing(true)
+
+    try {
+      // Process with Kraken AI
+      const result = await krakenAI.processCommand(command, availablePortals)
+      
+      // Add Kraken AI response
+      const krakenMessage: ChatMessage = {
+        id: Date.now().toString() + '_kraken',
+        type: 'kraken',
+        content: result.message,
+        timestamp: new Date(),
+        isExecuting: result.success && !!result.action
+      }
+
+      onUpdateConversation([...conversationHistory, userMessage, krakenMessage])
+
+      // Execute command if successful
+      if (result.success && result.action) {
+        onCommandExecuted(result)
+      }
+
+    } catch (error) {
+      console.error('Command processing error:', error)
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString() + '_error',
+        type: 'kraken',
+        content: 'I encountered an error processing your command.',
+        timestamp: new Date()
+      }
+      onUpdateConversation([...conversationHistory, userMessage, errorMessage])
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    processCommand(inputText)
+  }
+
+  return (
+    <motion.div
+      className="w-96 h-96 bg-gray-900/95 backdrop-blur-md border border-gray-700 rounded-lg shadow-2xl flex flex-col"
+      initial={{ opacity: 0, scale: 0.9, x: -20 }}
+      animate={{ opacity: 1, scale: 1, x: 0 }}
+      exit={{ opacity: 0, scale: 0.9, x: -20 }}
+      transition={{ type: "spring", damping: 25, stiffness: 300 }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-gray-700">
+        <div className="flex items-center space-x-2">
+          <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" />
+          <span className="text-purple-300 font-medium">Kraken AI</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-1 text-gray-400 hover:text-gray-200 transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Status Bar */}
+      <div className="px-4 py-2 bg-gray-800/50 border-b border-gray-700">
+        <div className="text-xs">
+          {!krakenAI.isReady() && (
+            <span className="text-yellow-400">⚠️ AI service not initialized</span>
+          )}
+          {krakenAI.isReady() && (
+            <span className="text-green-400">✅ AI service ready</span>
+          )}
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {conversationHistory.map((message) => (
+          <motion.div
+            key={message.id}
+            className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div
+              className={`max-w-[85%] p-3 rounded-lg text-sm ${
+                message.type === 'user'
+                  ? 'bg-purple-600/50 text-purple-100'
+                  : 'bg-gray-800/50 text-gray-200'
+              }`}
+            >
+              <div className="flex items-start space-x-2">
+                {message.isExecuting && (
+                  <Loader2 className="w-3 h-3 mt-0.5 animate-spin text-purple-400 flex-shrink-0" />
+                )}
+                <span>{message.content}</span>
+              </div>
+              <div className="text-xs opacity-60 mt-1">
+                {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+          </motion.div>
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input Area */}
+      <div className="p-4 border-t border-gray-700">
+        <form onSubmit={handleSubmit} className="flex items-center space-x-2">
+          <div className="flex-1 relative">
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder={krakenAI.isReady() ? "Type a command..." : "Configure API key first"}
+              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600 rounded-lg 
+                       text-gray-200 placeholder-gray-400 focus:outline-none focus:border-purple-500
+                       focus:ring-1 focus:ring-purple-500 text-sm"
+              disabled={isProcessing || !krakenAI.isReady()}
+            />
+          </div>
+          
+          {/* Voice Input Button */}
+          {recognitionRef.current && (
+            <button
+              type="button"
+              onClick={toggleListening}
+              className={`p-2 rounded-lg transition-colors ${
+                isListening 
+                  ? 'bg-red-500 hover:bg-red-600 text-white'
+                  : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+              }`}
+              disabled={isProcessing || !krakenAI.isReady()}
+            >
+              {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+          )}
+
+          {/* Send Button */}
+          <button
+            type="submit"
+            disabled={!inputText.trim() || isProcessing || !krakenAI.isReady()}
+            className="p-2 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 
+                     disabled:text-gray-500 text-white rounded-lg transition-colors"
+          >
+            {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </button>
+        </form>
+
+        {/* Status indicators */}
+        <div className="mt-2 text-xs text-gray-400 flex items-center justify-between">
+          <div>
+            {isListening && <span className="text-red-400">🎤 Listening...</span>}
+            {isProcessing && <ThreeDotsLoader />}
+          </div>
+          <div className="text-gray-500">
+            Press Enter to send
+          </div>
+        </div>
+      </div>
     </motion.div>
   )
 }
@@ -252,17 +664,58 @@ export function KrakenAssistant({
   className, 
   style,
   alertMessage,
-  onAlertDismiss
+  onAlertDismiss,
+  krakenAI,
+  availablePortals,
+  onCommandExecuted,
+  onAIPanelStateChange,
+  shouldCloseAIPanel,
+  shouldRestoreAIPanel
 }: KrakenAssistantProps) {
   const [isHoveringCenter, setIsHoveringCenter] = useState(false)
   const [isFieldActive, setIsFieldActive] = useState(false)
   const [showDialog, setShowDialog] = useState(false)
+  const [showAIPanel, setShowAIPanel] = useState(false)
+  const [hasProcessedCommand, setHasProcessedCommand] = useState(false)
+  const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([
+    {
+      id: '1',
+      type: 'kraken',
+      content: 'Kraken AI interface active. Ready for commands.',
+      timestamp: new Date()
+    }
+  ])
   const centerContainerRef = useRef<HTMLDivElement>(null)
   const topLeftContainerRef = useRef<HTMLDivElement>(null)
-  const hideTimeoutRef = useRef<number>()
+  const hideTimeoutRef = useRef<NodeJS.Timeout>()
 
-  // Force expanded state when there's an alert message
-  const isInUpperLeft = hasOpenPortals || !!alertMessage
+  // Force expanded state when there's an alert message, portals are open, or AI panel is shown
+  const isInUpperLeft = hasOpenPortals || !!alertMessage || showAIPanel || hasProcessedCommand
+
+  // Notify parent about AI panel state changes
+  useEffect(() => {
+    const aiPanelActive = showAIPanel || hasProcessedCommand
+    onAIPanelStateChange?.(aiPanelActive)
+  }, [showAIPanel, hasProcessedCommand, onAIPanelStateChange])
+
+  // Close AI panel when requested by parent (e.g., when fullscreen portal opens)
+  useEffect(() => {
+    if (shouldCloseAIPanel) {
+      setShowAIPanel(false)
+      // If no portals are open, reset to center
+      if (!hasOpenPortals) {
+        setHasProcessedCommand(false)
+      }
+    }
+  }, [shouldCloseAIPanel, hasOpenPortals])
+
+  // Restore AI panel when requested by parent (e.g., when fullscreen portal closes)
+  useEffect(() => {
+    if (shouldRestoreAIPanel) {
+      setShowAIPanel(true)
+      setHasProcessedCommand(true)
+    }
+  }, [shouldRestoreAIPanel])
 
   // Show dialog when alert message is present
   useEffect(() => {
@@ -333,9 +786,37 @@ export function KrakenAssistant({
     }
   }, [])
 
-  const handleSearch = (query: string) => {
+  const handleSearch = async (query: string, result?: CommandResult) => {
     console.log('Kraken AI query:', query)
-    // AI processing will be implemented later
+    
+    // Add user message to conversation history
+    const userMessage: ChatMessage = {
+      id: Date.now().toString() + '_user',
+      type: 'user',
+      content: query,
+      timestamp: new Date()
+    }
+    
+    setConversationHistory(prev => [...prev, userMessage])
+    
+    // Add AI response if provided
+    if (result) {
+      const krakenMessage: ChatMessage = {
+        id: Date.now().toString() + '_kraken',
+        type: 'kraken',
+        content: result.message,
+        timestamp: new Date(),
+        isExecuting: result.success && !!result.action
+      }
+      
+      setConversationHistory(prev => [...prev, krakenMessage])
+    }
+    
+    setHasProcessedCommand(true)
+    setShowAIPanel(true)
+    
+    // Immediately notify parent about AI panel state change
+    onAIPanelStateChange?.(true)
   }
 
   const handleFieldFocusChange = (isFocused: boolean) => {
@@ -347,8 +828,20 @@ export function KrakenAssistant({
     onAlertDismiss?.()
   }
 
+  const handleAIPanelClose = () => {
+    setShowAIPanel(false)
+    // If no portals are open, reset to center
+    if (!hasOpenPortals) {
+      setHasProcessedCommand(false)
+    }
+  }
+
+  const handleCommandExecuted = (result: CommandResult) => {
+    onCommandExecuted(result)
+  }
+
   if (isInUpperLeft) {
-    // Small version in top-left when portals are open or alerts are present
+    // Small version in top-left when portals are open, alerts are present, or AI panel is shown
     return (
       <div className="relative">
         <motion.div
@@ -367,13 +860,32 @@ export function KrakenAssistant({
           />
         </motion.div>
 
+        {/* AI Command Panel - positioned to the right of the eye, aligned with eye top */}
+        <AnimatePresence>
+          {showAIPanel && (
+            <div className="fixed z-[250]" style={{ 
+              left: '136px', // 24px (avatar left) + 96px (avatar width) + 16px (gap) = 136px
+              top: '64px'    // 56px (avatar top) + 8px (eye centering offset) = 64px
+            }}>
+              <AICommandPanel
+                krakenAI={krakenAI}
+                availablePortals={availablePortals}
+                onCommandExecuted={handleCommandExecuted}
+                onClose={handleAIPanelClose}
+                conversationHistory={conversationHistory}
+                onUpdateConversation={setConversationHistory}
+              />
+            </div>
+          )}
+        </AnimatePresence>
+
         {/* Alert Dialog */}
         <Dialog.Root open={showDialog} onOpenChange={setShowDialog}>
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 bg-black/50 z-[250]" />
             <Dialog.Content className="fixed z-[300]" style={{
-              left: '140px', // Position to the right of the Kraken Eye
-              top: '60px'    // Align with the eye vertically
+              left: showAIPanel ? '520px' : '140px', // Position after AI panel if it's open
+              top: '8px'    // Align with the actual eye SVG
             }}>
               <motion.div
                 className="bg-gray-900/95 border border-red-500/50 rounded-lg p-4 shadow-2xl min-w-[300px]"
@@ -444,6 +956,9 @@ export function KrakenAssistant({
             <KrakenSearchField 
               onSearch={handleSearch}
               onFocusChange={handleFieldFocusChange}
+              krakenAI={krakenAI}
+              availablePortals={availablePortals}
+              onCommandExecuted={handleCommandExecuted}
             />
           )}
         </AnimatePresence>

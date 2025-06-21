@@ -30,6 +30,7 @@ export function useMouseTracking() {
       // Calculate tray visibility based on mouse position near edge centers
       const edgeThreshold = 60 // How close to the edge
       const centerThreshold = 200 // How close to the center of the edge
+      const bottomTrayThreshold = 400 // Wider threshold for bottom tray to accommodate all icons
       const { innerWidth, innerHeight } = window
       
       // Calculate center points
@@ -37,9 +38,9 @@ export function useMouseTracking() {
       const centerY = (innerHeight - 24) / 2 + 24 // Account for classification banner
       
       setTrayVisibility({
-        // Bottom tray: mouse near bottom edge AND near horizontal center
+        // Bottom tray: mouse near bottom edge AND within wider horizontal range
         bottom: e.clientY > innerHeight - edgeThreshold && 
-                Math.abs(e.clientX - centerX) < centerThreshold,
+                Math.abs(e.clientX - centerX) < bottomTrayThreshold,
         
         // Left tray: mouse near left edge AND near vertical center
         left: e.clientX < edgeThreshold && 

@@ -1,6 +1,92 @@
 # Kraken JARVIS Interface
 
-A military-grade command and control interface inspired by JARVIS from Iron Man, featuring a modular portal system for tactical operations.
+A military-grade command and control interface inspired by JARVIS from Iron Man, featuring a modular portal system for tactical operations and **natural language AI command interface**.
+
+## ✨ New Feature: Natural Language Command Interface
+
+The JARVIS interface now includes an advanced AI-powered command system that allows operators to control the interface using natural language commands.
+
+### 🚀 Setup Instructions
+
+1. **Install Dependencies**
+   ```bash
+   npm install openai@4.67.3
+   ```
+
+2. **Configure OpenAI API Key**
+   Create a `.env` file in your project root:
+   ```bash
+   # Get your API key from: https://platform.openai.com/api-keys
+   VITE_OPENAI_API_KEY=your_openai_api_key_here
+   ```
+
+3. **Development Environment**
+   For development, the interface will work without an API key but with limited functionality.
+
+### 🎯 Command Examples
+
+The JARVIS AI understands natural language commands such as:
+
+**Portal Control:**
+- "Open weather portal"
+- "Show alerts fullscreen"
+- "Display the map"
+- "Close all portals"
+- "Open camera capability in fullscreen"
+
+**Weather Commands:**
+- "Show weather for New York"
+- "Display weather information for Tel Aviv"
+
+**Threat Analysis:**
+- "Analyze threats"
+- "Show critical threats only"
+- "Analyze air threats"
+
+**Map Navigation:**
+- "Navigate to Baghdad"
+- "Center map on Israel"
+- "Show threats on map"
+
+**Interface Control:**
+- "Minimize all windows"
+- "Close everything"
+
+### 🤖 Features
+
+- **Voice Input**: Click the microphone button to use speech recognition
+- **Text Input**: Type commands directly
+- **OpenAI GPT-4**: Powered by OpenAI's latest language model
+- **Function Calling**: AI determines appropriate portal actions
+- **Smart Context**: Understands portal types and levels
+- **Real-time Feedback**: Immediate visual and audio responses
+- **Chat History**: Conversation history with JARVIS
+
+### 🔧 Technical Implementation
+
+**AI Service Layer** (`components/services/jarvisAI.ts`):
+- OpenAI Function Calling integration
+- Portal type recognition
+- Command intent analysis
+- Error handling and fallbacks
+
+**Command Interface** (`components/SimpleCommandInterface.tsx`):
+- Voice recognition using Web Speech API
+- Chat-style interaction
+- Real-time status indicators
+- Mobile-responsive design
+
+**Integration Hook** (`components/hooks/useCommandExecutor.ts`):
+- Portal state management integration
+- Command execution handling
+- Action dispatching
+
+### 🛡️ Security Considerations
+
+- API key is client-side for development (use backend proxy in production)
+- Input sanitization and validation
+- Command execution safety checks
+- Portal access control integration
 
 ## Recent Updates
 
@@ -45,6 +131,7 @@ The AlertsPortal has been implemented following the PRD specifications with both
 - **Framer Motion** for animations
 - **Leaflet** for geospatial mapping
 - **Recharts** for data visualization
+- **OpenAI GPT-4** for natural language processing
 
 ## Portal System
 
@@ -66,4 +153,5 @@ Following military aesthetic guidelines:
 2. **Type Safety**: Comprehensive TypeScript interfaces for all data structures
 3. **Accessibility**: Use Radix UI primitives and proper ARIA labels
 4. **Performance**: Optimize with React.memo, useMemo for heavy computations
-5. **Military UX**: Maintain tactical aesthetic with clear information hierarchy 
+5. **Military UX**: Maintain tactical aesthetic with clear information hierarchy
+6. **AI Integration**: Follow established patterns for natural language command processing 

@@ -257,7 +257,7 @@ function SystemStatusPortal() {
   ]
 
   const activeServices = [
-    { name: 'JARVIS Core', status: 'RUNNING', uptime: '72h 15m' },
+    { name: 'Kraken Core', status: 'RUNNING', uptime: '72h 15m' },
     { name: 'Tactical Network', status: 'RUNNING', uptime: '72h 15m' },
     { name: 'Data Correlation', status: 'RUNNING', uptime: '71h 42m' },
     { name: 'Threat Analysis', status: 'RUNNING', uptime: '72h 15m' }

@@ -314,7 +314,7 @@ function FullscreenSystemPortal() {
       <div className="bg-gray-800/30 rounded-lg p-6">
         <h4 className="text-lg text-gray-200 mb-4">Active Services</h4>
         <div className="space-y-3">
-          {['JARVIS Core', 'Tactical Network', 'Data Correlation', 'Threat Analysis', 'Communications Hub', 'Sensor Array'].map((service, index) => (
+          {['Kraken Core', 'Tactical Network', 'Data Correlation', 'Threat Analysis', 'Communications Hub', 'Sensor Array'].map((service, index) => (
             <div key={index} className="flex items-center justify-between p-3 bg-gray-700/30 rounded">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
