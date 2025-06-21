@@ -55,6 +55,6 @@ export const LAYOUT_CONSTANTS = {
   AVATAR_TOP_MARGIN: 32, // Increased space below classification banner
   TRAY_PROXIMITY_THRESHOLD: 60,
   CLOSE_BUTTON_MARGIN: 16,
-  USER_PROFILE_POSITION: { top: '32px', right: '64px' },
-  KRAKEN_LOGO_POSITION: { top: '32px', right: '16px' }
+  USER_PROFILE_POSITION: { top: '56px', right: '64px' },
+  KRAKEN_LOGO_POSITION: { bottom: '32px', right: '16px' }
 } as const 

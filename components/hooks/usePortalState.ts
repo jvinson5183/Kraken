@@ -21,6 +21,41 @@ export function usePortalState(isAIPanelActive?: boolean, onAIPanelClose?: () =>
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [fullscreenPortal])
 
+  // Handle repositioning of existing portals when AI panel state changes
+  useEffect(() => {
+    if (openPortals.length > 0) {
+      console.log('🔄 Repositioning portals due to AI panel state change. AI Panel Active:', isAIPanelActive)
+      
+      // Get the preferred positions for current AI panel state
+      const preferredPositions = isAIPanelActive 
+        ? [
+            { row: 0, col: 1 }, // Position 1 -> Grid space 2
+            { row: 0, col: 2 }, // Position 2 -> Grid space 3
+            { row: 1, col: 1 }, // Position 4 -> Grid space 5
+            { row: 1, col: 2 }, // Position 5 -> Grid space 6
+            { row: 2, col: 0 }, // Position 6 -> Grid space 7
+            { row: 2, col: 1 }, // Position 7 -> Grid space 8
+            { row: 2, col: 2 }, // Position 8 -> Grid space 9
+            { row: 1, col: 0 }, // Position 3 -> Grid space 4 (fallback)
+            { row: 0, col: 0 }, // Position 0 -> Grid space 1 (last resort)
+          ]
+        : [
+            // Normal order when AI panel is not active
+            { row: 0, col: 0 }, { row: 0, col: 1 }, { row: 0, col: 2 },
+            { row: 1, col: 0 }, { row: 1, col: 1 }, { row: 1, col: 2 },
+            { row: 2, col: 0 }, { row: 2, col: 1 }, { row: 2, col: 2 }
+          ]
+      
+      // Reposition all open portals according to the new preferred positions
+      setOpenPortals(prev => {
+        return prev.map((portal, index) => ({
+          ...portal,
+          position: preferredPositions[index] || { row: 2, col: 2 } // Fallback to bottom-right
+        }))
+      })
+    }
+  }, [isAIPanelActive]) // Only trigger when AI panel state changes
+
   const togglePortal = (portal: PortalData) => {
     // Check if portal is already open in grid
     const existingPortal = openPortals.find(p => p.id === portal.id)
