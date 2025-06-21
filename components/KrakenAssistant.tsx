@@ -2,10 +2,9 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Mic, MicOff, AlertTriangle, X, Send, Loader2 } from 'lucide-react'
-import * as Dialog from '@radix-ui/react-dialog'
+import { Mic, MicOff, Send, Loader2, X } from 'lucide-react'
 import { KrakenAI, CommandResult } from './services/jarvisAI'
-import { PortalData } from './constants/portalConfigs'
+import { PortalData } from './constants/portalConfigs.tsx'
 
 // Animated three-dot loader component
 const ThreeDotsLoader = () => (
@@ -33,14 +32,14 @@ interface KrakenAssistantProps {
   mousePosition: { x: number; y: number }
   className?: string
   style?: React.CSSProperties
-  alertMessage?: string
-  onAlertDismiss?: () => void
   krakenAI: KrakenAI
   availablePortals: PortalData[]
   onCommandExecuted: (result: CommandResult) => void
   onAIPanelStateChange?: (isActive: boolean) => void
   shouldCloseAIPanel?: boolean
   shouldRestoreAIPanel?: boolean
+  shouldTriggerSearch?: boolean
+  shouldTriggerAIPanel?: boolean
 }
 
 interface KrakenEyeProps {
@@ -212,7 +211,7 @@ function KrakenSearchField({
   onFocusChange, 
   krakenAI, 
   availablePortals, 
-  onCommandExecuted 
+  onCommandExecuted
 }: { 
   onSearch?: (query: string, result?: CommandResult) => void
   onFocusChange?: (isFocused: boolean) => void 
@@ -358,10 +357,11 @@ function KrakenSearchField({
           <button
             type="button"
             onClick={handleVoiceInput}
+            data-testid="voice-listen-button"
             disabled={isProcessing || !krakenAI.isReady()}
             className={`absolute right-12 top-1/2 transform -translate-y-1/2 p-2 rounded-full transition-colors duration-200 ${
               isListening 
-                ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
+                ? 'bg-red-500/40 text-red-300 hover:bg-red-500/50 animate-pulse' 
                 : 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30'
             }`}
           >
@@ -621,6 +621,7 @@ function AICommandPanel({
             <button
               type="button"
               onClick={toggleListening}
+              data-testid="voice-listen-button"
               className={`p-2 rounded-lg transition-colors ${
                 isListening 
                   ? 'bg-red-500 hover:bg-red-600 text-white'
@@ -663,20 +664,19 @@ export function KrakenAssistant({
   mousePosition, 
   className, 
   style,
-  alertMessage,
-  onAlertDismiss,
   krakenAI,
   availablePortals,
   onCommandExecuted,
   onAIPanelStateChange,
   shouldCloseAIPanel,
-  shouldRestoreAIPanel
+  shouldRestoreAIPanel,
+  shouldTriggerSearch,
+  shouldTriggerAIPanel
 }: KrakenAssistantProps) {
-  const [isHoveringCenter, setIsHoveringCenter] = useState(false)
-  const [isFieldActive, setIsFieldActive] = useState(false)
-  const [showDialog, setShowDialog] = useState(false)
   const [showAIPanel, setShowAIPanel] = useState(false)
   const [hasProcessedCommand, setHasProcessedCommand] = useState(false)
+  const [isHoveringCenter, setIsHoveringCenter] = useState(false)
+  const [isFieldActive, setIsFieldActive] = useState(false)
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([
     {
       id: '1',
@@ -689,8 +689,8 @@ export function KrakenAssistant({
   const topLeftContainerRef = useRef<HTMLDivElement>(null)
   const hideTimeoutRef = useRef<NodeJS.Timeout>()
 
-  // Force expanded state when there's an alert message, portals are open, or AI panel is shown
-  const isInUpperLeft = hasOpenPortals || !!alertMessage || showAIPanel || hasProcessedCommand
+  // Force expanded state when there's portals are open or AI panel is shown
+  const isInUpperLeft = hasOpenPortals || showAIPanel || hasProcessedCommand
 
   // Notify parent about AI panel state changes
   useEffect(() => {
@@ -717,12 +717,52 @@ export function KrakenAssistant({
     }
   }, [shouldRestoreAIPanel])
 
-  // Show dialog when alert message is present
+  // Reset to center (large eye) when both portals and AI panel are closed
   useEffect(() => {
-    if (alertMessage) {
-      setShowDialog(true)
+    if (!hasOpenPortals && !showAIPanel) {
+      setHasProcessedCommand(false)
+      setIsFieldActive(false)
+      setIsHoveringCenter(false)
     }
-  }, [alertMessage])
+  }, [hasOpenPortals, showAIPanel])
+
+  // Handle keyboard shortcut to trigger search field (when no portals open)
+  useEffect(() => {
+    if (shouldTriggerSearch) {
+      setIsFieldActive(true)
+      setIsHoveringCenter(true)
+      
+      // Add a delay to ensure the search field is rendered before trying to start voice
+      setTimeout(() => {
+        // Focus the search field if it exists
+        const searchInput = document.querySelector('input[placeholder*="Ask Kraken"]') as HTMLInputElement
+        if (searchInput) {
+          searchInput.focus()
+        }
+        
+        // Start voice listening by finding and clicking the voice button
+        const voiceButton = document.querySelector('[data-testid="voice-listen-button"]') as HTMLButtonElement
+        if (voiceButton) {
+          voiceButton.click()
+        }
+      }, 150) // Small delay to ensure component is rendered
+    }
+  }, [shouldTriggerSearch])
+
+  // Handle keyboard shortcut to trigger AI panel (when portals are open)
+  useEffect(() => {
+    if (shouldTriggerAIPanel) {
+      setShowAIPanel(true)
+      setHasProcessedCommand(true)
+      // Trigger voice listening after a brief delay to ensure panel is open
+      setTimeout(() => {
+        const listenButton = document.querySelector('[data-testid="voice-listen-button"]') as HTMLButtonElement
+        if (listenButton) {
+          listenButton.click()
+        }
+      }, 100)
+    }
+  }, [shouldTriggerAIPanel])
 
   // Calculate distance from mouse to center eye or search field area
   useEffect(() => {
@@ -823,11 +863,6 @@ export function KrakenAssistant({
     setIsFieldActive(isFocused)
   }
 
-  const handleAlertClose = () => {
-    setShowDialog(false)
-    onAlertDismiss?.()
-  }
-
   const handleAIPanelClose = () => {
     setShowAIPanel(false)
     // If no portals are open, reset to center
@@ -878,51 +913,6 @@ export function KrakenAssistant({
             </div>
           )}
         </AnimatePresence>
-
-        {/* Alert Dialog */}
-        <Dialog.Root open={showDialog} onOpenChange={setShowDialog}>
-          <Dialog.Portal>
-            <Dialog.Overlay className="fixed inset-0 bg-black/50 z-[250]" />
-            <Dialog.Content className="fixed z-[300]" style={{
-              left: showAIPanel ? '520px' : '140px', // Position after AI panel if it's open
-              top: '8px'    // Align with the actual eye SVG
-            }}>
-              <motion.div
-                className="bg-gray-900/95 border border-red-500/50 rounded-lg p-4 shadow-2xl min-w-[300px]"
-                initial={{ opacity: 0, scale: 0.9, x: -20 }}
-                animate={{ opacity: 1, scale: 1, x: 0 }}
-                exit={{ opacity: 0, scale: 0.9, x: -20 }}
-                transition={{ type: "spring", damping: 25, stiffness: 400 }}
-              >
-                {/* Alert Header */}
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-8 h-8 bg-red-500/20 rounded-full flex items-center justify-center">
-                    <AlertTriangle className="w-5 h-5 text-red-400" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-red-400 font-medium">CRITICAL ALERT</h3>
-                    <p className="text-xs text-gray-400">Immediate Action Required</p>
-                  </div>
-                  <Dialog.Close asChild>
-                    <button 
-                      className="w-6 h-6 text-gray-400 hover:text-gray-200 transition-colors"
-                      onClick={handleAlertClose}
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </Dialog.Close>
-                </div>
-
-                {/* Alert Message */}
-                <div className="mb-4">
-                  <p className="text-gray-200 text-sm leading-relaxed">
-                    {alertMessage || "No alert message provided"}
-                  </p>
-                </div>
-              </motion.div>
-            </Dialog.Content>
-          </Dialog.Portal>
-        </Dialog.Root>
       </div>
     )
   }

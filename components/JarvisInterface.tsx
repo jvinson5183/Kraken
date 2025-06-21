@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AlertTriangle } from 'lucide-react'
 import { EdgeTray } from './EdgeTray'
 import { PortalGrid } from './PortalGrid'
 import { FullscreenPortal } from './FullscreenPortal'
@@ -26,11 +25,11 @@ import { KrakenAI } from './services/jarvisAI'
 // Portal configurations imported from constants file
 
 export function KrakenInterface() {
-  // Alert system state
-  const [alertMessage, setAlertMessage] = useState<string>('')
-  
   // AI panel state tracking
   const [isAIPanelActive, setIsAIPanelActive] = useState(false)
+  // Keyboard shortcut trigger state
+  const [shouldTriggerSearch, setShouldTriggerSearch] = useState(false)
+  const [shouldTriggerAIPanel, setShouldTriggerAIPanel] = useState(false)
 
   // Initialize Kraken AI service
   const krakenAI = useMemo(() => new KrakenAI(), [])
@@ -56,6 +55,42 @@ export function KrakenInterface() {
     expandPortalToFullscreen,
     openPortal
   } = usePortalState(isAIPanelActive, handleAIPanelClose)
+
+  // Keyboard shortcut listener
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Check for Ctrl+Shift+2 - try multiple detection methods
+      const isCtrlShift2 = event.ctrlKey && event.shiftKey && (
+        event.key === '2' || 
+        event.key === '@' || 
+        event.code === 'Digit2' || 
+        event.keyCode === 50
+      )
+      
+      // Alternative test shortcut: F2 key
+      const isF2 = event.key === 'F2' || event.code === 'F2' || event.keyCode === 113
+      
+      if (isCtrlShift2 || isF2) {
+        event.preventDefault()
+        
+        if (!hasOpenPortals) {
+          // No portals open: trigger search field
+          setShouldTriggerSearch(true)
+          // Reset the trigger after a brief moment
+          setTimeout(() => setShouldTriggerSearch(false), 100)
+        } else {
+          // Portals open: trigger AI command panel in listening mode
+          setShouldTriggerAIPanel(true)
+          setIsAIPanelActive(true)
+          // Reset the trigger after a brief moment
+          setTimeout(() => setShouldTriggerAIPanel(false), 100)
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [hasOpenPortals])
 
   // Track if AI panel should be closed due to fullscreen portal
   const [shouldCloseAIPanel, setShouldCloseAIPanel] = React.useState(false)
@@ -172,21 +207,6 @@ export function KrakenInterface() {
     expandPortalToFullscreen(portalId, allPortals)
   }
 
-  // Alert system handlers
-  const handleTestAlert = () => {
-    setAlertMessage('Missile incoming.')
-    
-    // Automatically open camera at Level 3 (fullscreen)
-    const cameraPortal = allPortals.find(p => p.id === 'camera-capability')
-    if (cameraPortal) {
-      openFullscreenPortal(cameraPortal)
-    }
-  }
-
-  const handleAlertDismiss = () => {
-    setAlertMessage('')
-  }
-
   return (
     <WeatherPortalProvider>
       <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 overflow-hidden">
@@ -277,19 +297,19 @@ export function KrakenInterface() {
       <KrakenAssistant
         hasOpenPortals={hasOpenPortals}
         mousePosition={mousePosition}
-        className={(hasOpenPortals || alertMessage || isAIPanelActive) ? "absolute z-[200]" : ""}
-        style={(hasOpenPortals || alertMessage || isAIPanelActive) ? {
+        className={(hasOpenPortals || isAIPanelActive) ? "absolute z-[200]" : ""}
+        style={(hasOpenPortals || isAIPanelActive) ? {
           left: `${avatarPosition.left}px`,
           top: `${avatarPosition.top}px`
         } : undefined}
-        alertMessage={alertMessage}
-        onAlertDismiss={handleAlertDismiss}
         krakenAI={krakenAI}
         availablePortals={allPortals}
         onCommandExecuted={executeCommand}
         onAIPanelStateChange={setIsAIPanelActive}
         shouldCloseAIPanel={shouldCloseAIPanel}
         shouldRestoreAIPanel={shouldRestoreAIPanel}
+        shouldTriggerSearch={shouldTriggerSearch}
+        shouldTriggerAIPanel={shouldTriggerAIPanel}
       />
 
       {/* Close All Portals Button - Bottom-left corner */}
@@ -299,19 +319,6 @@ export function KrakenInterface() {
           hasOpenPortals={hasOpenPortals}
         />
       </AnimatePresence>
-
-      {/* Test Alert Button - Bottom-right corner */}
-      <motion.button
-        className="fixed bottom-4 right-24 w-12 h-12 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-lg z-[200] transition-colors"
-        onClick={handleTestAlert}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        initial={{ opacity: 0, scale: 0 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 1, type: "spring", damping: 20, stiffness: 300 }}
-      >
-        <AlertTriangle className="w-6 h-6" />
-      </motion.button>
 
       {/* Subtle corner accents */}
       <div className="absolute top-6 right-0 w-32 h-32 bg-gradient-to-bl from-gray-600/5 to-transparent pointer-events-none" />

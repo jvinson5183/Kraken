@@ -2,10 +2,11 @@
 
 import React from 'react'
 import Layer1 from '../imports/Layer1'
+import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
 
 interface KrakenLogoProps {
   size?: number
-  position?: { top?: string; right?: string }
+  position?: { bottom?: string; right?: string }
   className?: string
 }
 
@@ -16,22 +17,31 @@ interface KrakenLogoProps {
  */
 export function KrakenLogo({ 
   size = 40,
-  position = { top: '32px', right: '16px' },
+  position = { bottom: '32px', right: '16px' },
   className = ''
 }: KrakenLogoProps) {
   const positionStyles = {
-    top: position.top,
+    bottom: position.bottom,
     right: position.right,
     width: `${size}px`,
     height: `${size}px`
   }
 
   return (
-    <div 
-      className={`fixed z-[200] flex items-center justify-center ${className}`}
-      style={positionStyles}
-    >
-      <Layer1 />
-    </div>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div 
+            className={`fixed z-[200] flex items-center justify-center cursor-pointer opacity-50 hover:opacity-100 transition-opacity duration-200 ${className}`}
+            style={positionStyles}
+          >
+            <Layer1 />
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Kraken 1.0</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
 } 
