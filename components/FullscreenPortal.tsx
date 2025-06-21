@@ -15,9 +15,10 @@ import WeatherPortalComponent from './portals/WeatherPortal'
 interface FullscreenPortalProps {
   portal: PortalData
   onClose: () => void
+  onMinimize: () => void
 }
 
-export function FullscreenPortal({ portal, onClose }: FullscreenPortalProps) {
+export function FullscreenPortal({ portal, onClose, onMinimize }: FullscreenPortalProps) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
@@ -121,7 +122,7 @@ export function FullscreenPortal({ portal, onClose }: FullscreenPortalProps) {
         <div className="flex items-center gap-2">
           {/* Minimize button - icon only */}
           <button
-            onClick={onClose}
+            onClick={onMinimize}
             className="p-2 text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg transition-all duration-200"
             title="Minimize to Level 2"
           >
@@ -164,7 +165,7 @@ export function FullscreenPortal({ portal, onClose }: FullscreenPortalProps) {
       {/* Scrollable Content Area - No additional header */}
       <div className="relative z-10 flex flex-col" style={{ height: 'calc(100vh - 140px - 80px - 120px)' }}>
         <div className="flex-1 p-6 overflow-hidden min-h-0">
-          {renderFullscreenPortalContent(portal, onClose)}
+          {renderFullscreenPortalContent(portal, onClose, onMinimize)}
         </div>
       </div>
 
@@ -194,19 +195,23 @@ export function FullscreenPortal({ portal, onClose }: FullscreenPortalProps) {
 }
 
 // Render fullscreen-optimized content based on portal type
-function renderFullscreenPortalContent(portal: PortalData, onClose: () => void) {
+function renderFullscreenPortalContent(portal: PortalData, onClose: () => void, onMinimize: () => void) {
   switch (portal.type) {
     case 'system':
       return <FullscreenSystemPortal />
     case 'weather':
-      return <WeatherPortalComponent level={3} onLevelChange={() => {}} onClose={onClose} />
+      return <WeatherPortalComponent level={3} onLevelChange={(level) => {
+        if (level === 2) {
+          onMinimize()
+        }
+      }} onClose={onClose} />
     case 'map':
       return (
         <MapPortal 
           level={3} 
           onLevelChange={(level) => {
             if (level === 2) {
-              onClose()
+              onMinimize()
             }
           }} 
           onClose={onClose} 
@@ -218,7 +223,7 @@ function renderFullscreenPortalContent(portal: PortalData, onClose: () => void) 
           level={3} 
           onLevelChange={(level) => {
             if (level === 2) {
-              onClose()
+              onMinimize()
             }
           }} 
           onClose={onClose} 
@@ -230,7 +235,7 @@ function renderFullscreenPortalContent(portal: PortalData, onClose: () => void) 
           level={3} 
           onLevelChange={(level) => {
             if (level === 2) {
-              onClose()
+              onMinimize()
             }
           }} 
           onClose={onClose} 
@@ -242,7 +247,7 @@ function renderFullscreenPortalContent(portal: PortalData, onClose: () => void) 
           level={3} 
           onLevelChange={(level) => {
             if (level === 2) {
-              onClose()
+              onMinimize()
             }
           }} 
           onClose={onClose} 
@@ -254,7 +259,7 @@ function renderFullscreenPortalContent(portal: PortalData, onClose: () => void) 
           level={3} 
           onLevelChange={(level) => {
             if (level === 2) {
-              onClose()
+              onMinimize()
             }
           }} 
           onClose={onClose} 

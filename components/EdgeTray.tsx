@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { PortalData } from './JarvisInterface'
+import { PortalData } from './constants/portalConfigs'
 
 interface EdgeTrayProps {
   position: 'top' | 'bottom' | 'left' | 'right'
@@ -18,7 +18,7 @@ export function EdgeTray({ position, visible, portals, openPortalIds, onPortalCl
     switch (position) {
       case 'top':
         return {
-          top: '0px',
+          top: '24px',
           left: '50%',
           transform: 'translateX(-50%)',
           width: 'auto',
@@ -27,26 +27,37 @@ export function EdgeTray({ position, visible, portals, openPortalIds, onPortalCl
       case 'bottom':
         return {
           bottom: '0px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 'auto',
-          height: '80px'
+          left: '0px',
+          right: '0px',
+          width: '100%',
+          height: '80px',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center'
         }
       case 'left':
         return {
           left: '0px',
-          top: '50%',
-          transform: 'translateY(-50%)',
+          top: '24px',
+          bottom: '0px',
           width: '80px',
-          height: 'auto'
+          height: 'calc(100% - 24px)',
+          display: 'flex',
+          flexDirection: 'column' as const,
+          justifyContent: 'center',
+          alignItems: 'center'
         }
       case 'right':
         return {
           right: '0px',
-          top: '50%',
-          transform: 'translateY(-50%)',
+          top: '24px',
+          bottom: '0px',
           width: '80px',
-          height: 'auto'
+          height: 'calc(100% - 24px)',
+          display: 'flex',
+          flexDirection: 'column' as const,
+          justifyContent: 'center',
+          alignItems: 'center'
         }
     }
   }

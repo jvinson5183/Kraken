@@ -2,13 +2,16 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Mic } from 'lucide-react'
+import { Mic, AlertTriangle, X } from 'lucide-react'
+import * as Dialog from '@radix-ui/react-dialog'
 
 interface KrakenAssistantProps {
   hasOpenPortals: boolean
   mousePosition: { x: number; y: number }
   className?: string
   style?: React.CSSProperties
+  alertMessage?: string
+  onAlertDismiss?: () => void
 }
 
 interface KrakenEyeProps {
@@ -83,7 +86,9 @@ function KrakenEye({ mousePosition, size = 80, isInCenter = false, containerRef 
     irisX = centerX + randomPosition.x
     irisY = centerY + randomPosition.y
   } else if (containerRef?.current) {
-    // Track mouse when moving or when in top-left
+    // Track mouse in all other cases:
+    // - In center position and mouse is moving
+    // - In top-left position (always track mouse)
     const rect = containerRef.current.getBoundingClientRect()
     const avatarCenterX = rect.left + rect.width / 2
     const avatarCenterY = rect.top + rect.height / 2
@@ -241,16 +246,35 @@ function KrakenSearchField({ onSearch, onFocusChange }: {
   )
 }
 
-export function KrakenAssistant({ hasOpenPortals, mousePosition, className, style }: KrakenAssistantProps) {
+export function KrakenAssistant({ 
+  hasOpenPortals, 
+  mousePosition, 
+  className, 
+  style,
+  alertMessage,
+  onAlertDismiss
+}: KrakenAssistantProps) {
   const [isHoveringCenter, setIsHoveringCenter] = useState(false)
   const [isFieldActive, setIsFieldActive] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const [showDialog, setShowDialog] = useState(false)
+  const centerContainerRef = useRef<HTMLDivElement>(null)
+  const topLeftContainerRef = useRef<HTMLDivElement>(null)
   const hideTimeoutRef = useRef<number>()
+
+  // Force expanded state when there's an alert message
+  const isInUpperLeft = hasOpenPortals || !!alertMessage
+
+  // Show dialog when alert message is present
+  useEffect(() => {
+    if (alertMessage) {
+      setShowDialog(true)
+    }
+  }, [alertMessage])
 
   // Calculate distance from mouse to center eye or search field area
   useEffect(() => {
-    if (!hasOpenPortals && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect()
+    if (!isInUpperLeft && centerContainerRef.current) {
+      const rect = centerContainerRef.current.getBoundingClientRect()
       const centerX = rect.left + rect.width / 2
       const centerY = rect.top + rect.height / 2
       
@@ -259,22 +283,22 @@ export function KrakenAssistant({ hasOpenPortals, mousePosition, className, styl
         Math.pow(mousePosition.x - centerX, 2) + Math.pow(mousePosition.y - centerY, 2)
       )
       
-                      // Define expanded interaction area that includes both eye and search field
-        const interactionArea = {
-          left: centerX - 200, // Slightly wider than search field
-          right: centerX + 200,
-          top: centerY - 80, // Above the eye
-          bottom: centerY + 130 + 60 // Below the search field with extra padding
-        }
-        
-        // Check if mouse is in the overall interaction area OR close to eye
-        const isInInteractionArea = mousePosition.x >= interactionArea.left && 
-                                   mousePosition.x <= interactionArea.right &&
-                                   mousePosition.y >= interactionArea.top && 
-                                   mousePosition.y <= interactionArea.bottom
-        
-        const shouldShow = eyeDistance <= 100 || isInInteractionArea
+      // Define expanded interaction area that includes both eye and search field
+      const interactionArea = {
+        left: centerX - 200, // Slightly wider than search field
+        right: centerX + 200,
+        top: centerY - 80, // Above the eye
+        bottom: centerY + 130 + 60 // Below the search field with extra padding
+      }
       
+      // Check if mouse is in the overall interaction area OR close to eye
+      const isInInteractionArea = mousePosition.x >= interactionArea.left && 
+                                 mousePosition.x <= interactionArea.right &&
+                                 mousePosition.y >= interactionArea.top && 
+                                 mousePosition.y <= interactionArea.bottom
+      
+      const shouldShow = eyeDistance <= 100 || isInInteractionArea
+    
       if (shouldShow || isFieldActive) {
         // Show field if hovering or field is focused
         if (hideTimeoutRef.current) {
@@ -282,15 +306,15 @@ export function KrakenAssistant({ hasOpenPortals, mousePosition, className, styl
           hideTimeoutRef.current = undefined
         }
         setIsHoveringCenter(true)
-              } else if (isHoveringCenter) {
-          // Start timeout to hide when not hovering and not focused
-          if (!hideTimeoutRef.current) {
-            hideTimeoutRef.current = setTimeout(() => {
-              setIsHoveringCenter(false)
-              hideTimeoutRef.current = undefined
-            }, 300) // Longer delay to prevent flickering during mouse movement
-          }
+      } else if (isHoveringCenter) {
+        // Start timeout to hide when not hovering and not focused
+        if (!hideTimeoutRef.current) {
+          hideTimeoutRef.current = setTimeout(() => {
+            setIsHoveringCenter(false)
+            hideTimeoutRef.current = undefined
+          }, 300) // Longer delay to prevent flickering during mouse movement
         }
+      }
     } else {
       if (hideTimeoutRef.current) {
         clearTimeout(hideTimeoutRef.current)
@@ -298,7 +322,7 @@ export function KrakenAssistant({ hasOpenPortals, mousePosition, className, styl
       }
       setIsHoveringCenter(false)
     }
-  }, [mousePosition, hasOpenPortals, isHoveringCenter])
+  }, [mousePosition, isInUpperLeft, isHoveringCenter, isFieldActive])
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -318,28 +342,80 @@ export function KrakenAssistant({ hasOpenPortals, mousePosition, className, styl
     setIsFieldActive(isFocused)
   }
 
-  if (hasOpenPortals) {
-    // Small version in top-left when portals are open
+  const handleAlertClose = () => {
+    setShowDialog(false)
+    onAlertDismiss?.()
+  }
+
+  if (isInUpperLeft) {
+    // Small version in top-left when portals are open or alerts are present
     return (
-      <motion.div
-        ref={containerRef}
-        className={`w-24 h-24 ${className || ''}`}
-        style={style}
-        initial={{ scale: 1 }}
-        animate={{ scale: 1 }}
-        transition={{ duration: 0.5 }}
-      >
-        <KrakenEye 
-          mousePosition={mousePosition} 
-          size={80} 
-          isInCenter={false}
-          containerRef={containerRef}
-        />
-      </motion.div>
+      <div className="relative">
+        <motion.div
+          ref={topLeftContainerRef}
+          className={`w-24 h-24 ${className || ''}`}
+          style={style}
+          initial={{ scale: 1 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <KrakenEye 
+            mousePosition={mousePosition} 
+            size={80} 
+            isInCenter={false}
+            containerRef={topLeftContainerRef}
+          />
+        </motion.div>
+
+        {/* Alert Dialog */}
+        <Dialog.Root open={showDialog} onOpenChange={setShowDialog}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 bg-black/50 z-[250]" />
+            <Dialog.Content className="fixed z-[300]" style={{
+              left: '140px', // Position to the right of the Kraken Eye
+              top: '60px'    // Align with the eye vertically
+            }}>
+              <motion.div
+                className="bg-gray-900/95 border border-red-500/50 rounded-lg p-4 shadow-2xl min-w-[300px]"
+                initial={{ opacity: 0, scale: 0.9, x: -20 }}
+                animate={{ opacity: 1, scale: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.9, x: -20 }}
+                transition={{ type: "spring", damping: 25, stiffness: 400 }}
+              >
+                {/* Alert Header */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 bg-red-500/20 rounded-full flex items-center justify-center">
+                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-red-400 font-medium">CRITICAL ALERT</h3>
+                    <p className="text-xs text-gray-400">Immediate Action Required</p>
+                  </div>
+                  <Dialog.Close asChild>
+                    <button 
+                      className="w-6 h-6 text-gray-400 hover:text-gray-200 transition-colors"
+                      onClick={handleAlertClose}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </Dialog.Close>
+                </div>
+
+                {/* Alert Message */}
+                <div className="mb-4">
+                  <p className="text-gray-200 text-sm leading-relaxed">
+                    {alertMessage || "No alert message provided"}
+                  </p>
+                </div>
+              </motion.div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      </div>
     )
   }
 
-  // Large version in center when no portals are open
+  // Large version in center when no portals are open and no alerts
   return (
     <motion.div
       className="fixed inset-0 flex items-center justify-center z-[150] pointer-events-none"
@@ -349,7 +425,7 @@ export function KrakenAssistant({ hasOpenPortals, mousePosition, className, styl
     >
       <div className="relative flex flex-col items-center pointer-events-auto">
         <motion.div
-          ref={containerRef}
+          ref={centerContainerRef}
           className="relative"
           initial={{ scale: 1 }}
           animate={{ scale: 2 }}
@@ -359,7 +435,7 @@ export function KrakenAssistant({ hasOpenPortals, mousePosition, className, styl
             mousePosition={mousePosition} 
             size={80} 
             isInCenter={true}
-            containerRef={containerRef}
+            containerRef={centerContainerRef}
           />
         </motion.div>
         

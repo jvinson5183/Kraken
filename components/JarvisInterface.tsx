@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { AlertTriangle } from 'lucide-react'
 import { EdgeTray } from './EdgeTray'
 import { PortalGrid } from './PortalGrid'
 import { FullscreenPortal } from './FullscreenPortal'
@@ -22,6 +23,8 @@ import { WeatherPortalProvider } from './portals/WeatherPortal'
 // Portal configurations imported from constants file
 
 export function JarvisInterface() {
+  // Alert system state
+  const [alertMessage, setAlertMessage] = useState<string>('')
 
   // Custom hooks for state management
   const { mousePosition, trayVisibility } = useMouseTracking()
@@ -53,6 +56,21 @@ export function JarvisInterface() {
   // Wrapper for expandPortalToFullscreen to provide allPortals
   const handleExpandPortalToFullscreen = (portalId: string) => {
     expandPortalToFullscreen(portalId, allPortals)
+  }
+
+  // Alert system handlers
+  const handleTestAlert = () => {
+    setAlertMessage('Missile incoming.')
+    
+    // Automatically open camera at Level 3 (fullscreen)
+    const cameraPortal = allPortals.find(p => p.id === 'camera-capability')
+    if (cameraPortal) {
+      openFullscreenPortal(cameraPortal)
+    }
+  }
+
+  const handleAlertDismiss = () => {
+    setAlertMessage('')
   }
 
   return (
@@ -135,7 +153,8 @@ export function JarvisInterface() {
         {fullscreenPortal && (
           <FullscreenPortal
             portal={fullscreenPortal}
-            onClose={closeFullscreenPortal}
+            onClose={() => closePortal(fullscreenPortal.id)}
+            onMinimize={closeFullscreenPortal}
           />
         )}
       </AnimatePresence>
@@ -144,11 +163,13 @@ export function JarvisInterface() {
       <KrakenAssistant
         hasOpenPortals={hasOpenPortals}
         mousePosition={mousePosition}
-        className={hasOpenPortals ? "absolute z-[200]" : ""}
-        style={hasOpenPortals ? {
+        className={hasOpenPortals || alertMessage ? "absolute z-[200]" : ""}
+        style={(hasOpenPortals || alertMessage) ? {
           left: `${avatarPosition.left}px`,
           top: `${avatarPosition.top}px`
         } : undefined}
+        alertMessage={alertMessage}
+        onAlertDismiss={handleAlertDismiss}
       />
 
       {/* Close All Portals Button - Bottom-left corner */}
@@ -158,6 +179,19 @@ export function JarvisInterface() {
           hasOpenPortals={hasOpenPortals}
         />
       </AnimatePresence>
+
+      {/* Test Alert Button - Bottom-right corner */}
+      <motion.button
+        className="fixed bottom-4 right-4 w-12 h-12 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-lg z-[200] transition-colors"
+        onClick={handleTestAlert}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 1, type: "spring", damping: 20, stiffness: 300 }}
+      >
+        <AlertTriangle className="w-6 h-6" />
+      </motion.button>
 
       {/* Subtle corner accents */}
       <div className="absolute top-6 right-0 w-32 h-32 bg-gradient-to-bl from-gray-600/5 to-transparent pointer-events-none" />

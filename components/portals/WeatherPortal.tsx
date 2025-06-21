@@ -40,6 +40,20 @@ import { Input } from '../ui/input'
 // Tel Aviv coordinates for demo
 const TEL_AVIV_COORDS = { lat: 32.0853, lon: 34.7818 }
 
+// Common state abbreviations for better geocoding
+const STATE_ABBREVIATIONS: { [key: string]: string } = {
+  'al': 'alabama', 'ak': 'alaska', 'az': 'arizona', 'ar': 'arkansas', 'ca': 'california',
+  'co': 'colorado', 'ct': 'connecticut', 'de': 'delaware', 'fl': 'florida', 'ga': 'georgia',
+  'hi': 'hawaii', 'id': 'idaho', 'il': 'illinois', 'in': 'indiana', 'ia': 'iowa',
+  'ks': 'kansas', 'ky': 'kentucky', 'la': 'louisiana', 'me': 'maine', 'md': 'maryland',
+  'ma': 'massachusetts', 'mi': 'michigan', 'mn': 'minnesota', 'ms': 'mississippi', 'mo': 'missouri',
+  'mt': 'montana', 'ne': 'nebraska', 'nv': 'nevada', 'nh': 'new hampshire', 'nj': 'new jersey',
+  'nm': 'new mexico', 'ny': 'new york', 'nc': 'north carolina', 'nd': 'north dakota', 'oh': 'ohio',
+  'ok': 'oklahoma', 'or': 'oregon', 'pa': 'pennsylvania', 'ri': 'rhode island', 'sc': 'south carolina',
+  'sd': 'south dakota', 'tn': 'tennessee', 'tx': 'texas', 'ut': 'utah', 'vt': 'vermont',
+  'va': 'virginia', 'wa': 'washington', 'wv': 'west virginia', 'wi': 'wisconsin', 'wy': 'wyoming'
+}
+
 interface WeatherData {
   location: string
   coordinates: { lat: number; lon: number }
@@ -325,31 +339,61 @@ export const WeatherPortalProvider: React.FC<{ children: React.ReactNode }> = ({
   const refreshWeatherData = async () => {
     setIsLoading(true)
     try {
-      const newWeatherData = await fetchNOAAWeatherData(settings.location)
+      const newWeatherData = await fetchOpenMeteoWeatherData(settings.location)
       if (newWeatherData) {
         setWeatherData(newWeatherData)
+        setLastUpdated(new Date())
+      } else {
+        // Fallback to sample data if API fails
+        console.warn('Failed to fetch weather data, using sample data')
+        setWeatherData(SAMPLE_WEATHER_DATA)
         setLastUpdated(new Date())
       }
     } catch (error) {
       console.error('Error refreshing weather data:', error)
+      // Fallback to sample data on error
+      setWeatherData(SAMPLE_WEATHER_DATA)
+      setLastUpdated(new Date())
     } finally {
       setIsLoading(false)
     }
   }
 
   const updateLocationWeather = async (newLocation: string) => {
+    console.log('🌍 updateLocationWeather called with:', newLocation)
+    console.log('📍 Current location was:', settings.location)
     setIsLoading(true)
     try {
-      const newWeatherData = await fetchNOAAWeatherData(newLocation)
+      const newWeatherData = await fetchOpenMeteoWeatherData(newLocation)
+      console.log('🌤️ Received weather data:', newWeatherData)
       if (newWeatherData) {
+        console.log('✅ Successfully fetched weather data, updating state...')
         setWeatherData(newWeatherData)
         setSettings(prev => ({ ...prev, location: newLocation }))
         setLastUpdated(new Date())
+        console.log('✅ Weather data updated successfully for:', newLocation)
+        console.log('🌡️ New temperature:', newWeatherData.current.temperature)
+        console.log('📍 Settings location updated to:', newLocation)
+      } else {
+        // Fallback to sample data if API fails, but still update location
+        console.warn('⚠️ Failed to fetch weather data for new location, using sample data')
+        const fallbackData = { ...SAMPLE_WEATHER_DATA, location: newLocation }
+        setWeatherData(fallbackData)
+        setSettings(prev => ({ ...prev, location: newLocation }))
+        setLastUpdated(new Date())
+        console.log('📋 Using sample data for:', newLocation)
       }
     } catch (error) {
-      console.error('Error updating location weather:', error)
+      console.error('❌ Error updating location weather:', error)
+      // Fallback to sample data on error, but still update location
+      const fallbackData = { ...SAMPLE_WEATHER_DATA, location: newLocation }
+      setWeatherData(fallbackData)
+      setSettings(prev => ({ ...prev, location: newLocation }))
+      setLastUpdated(new Date())
+      console.log('📋 Error fallback data set for:', newLocation)
     } finally {
       setIsLoading(false)
+      console.log('🔄 Loading state set to false')
     }
   }
 
@@ -460,24 +504,36 @@ const getSpeedUnit = (units: 'metric' | 'imperial'): string => {
   return units === 'metric' ? 'km/h' : 'mph'
 }
 
-// NOAA API Integration Functions
+// Open-Meteo API Integration Functions
 const geocodeLocation = async (location: string): Promise<{ lat: number; lon: number } | null> => {
   try {
-    // First try with Nominatim (OpenStreetMap) - free geocoding service
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(location)}&limit=1`,
-      {
-        headers: {
-          'User-Agent': '(Kraken Weather Portal, contact@example.com)'
-        }
-      }
-    )
+    console.log('Geocoding location:', location)
+    
+    // Enhanced search with more results to find the right city+state combination
+    const geocodeUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=10&language=en&format=json`
+    console.log('Geocoding URL:', geocodeUrl)
+    
+    const response = await fetch(geocodeUrl)
+    console.log('Geocoding response status:', response.status)
     
     if (response.ok) {
       const data = await response.json()
-      if (data && data.length > 0) {
-        return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) }
+      console.log('Geocoding response data:', data)
+      if (data.results && data.results.length > 0) {
+        console.log(`✅ Found ${data.results.length} geocoding results`)
+        
+        // Always return the first result if we have results
+        const bestMatch = data.results[0]
+        console.log('🎯 Using first result:', bestMatch)
+        
+        const coords = { lat: bestMatch.latitude, lon: bestMatch.longitude }
+        console.log('📍 Selected coordinates:', coords, 'for location:', `${bestMatch.name}, ${bestMatch.admin1 || ''}, ${bestMatch.country}`)
+        return coords
+      } else {
+        console.log('No results found in geocoding response')
       }
+    } else {
+      console.error('Geocoding API failed with status:', response.status)
     }
     
     // Fallback to hardcoded coordinates for common locations
@@ -497,7 +553,11 @@ const geocodeLocation = async (location: string): Promise<{ lat: number; lon: nu
       'washington, dc': { lat: 38.9072, lon: -77.0369 },
       'los angeles, ca': { lat: 34.0522, lon: -118.2437 },
       'chicago, il': { lat: 41.8781, lon: -87.6298 },
-      'miami, fl': { lat: 25.7617, lon: -80.1918 }
+      'miami, fl': { lat: 25.7617, lon: -80.1918 },
+      'berlin, germany': { lat: 52.5200, lon: 13.4050 },
+      'madrid, spain': { lat: 40.4168, lon: -3.7038 },
+      'rome, italy': { lat: 41.9028, lon: 12.4964 },
+      'amsterdam, netherlands': { lat: 52.3676, lon: 4.9041 }
     }
     
     const normalized = location.toLowerCase().trim()
@@ -509,161 +569,167 @@ const geocodeLocation = async (location: string): Promise<{ lat: number; lon: nu
   }
 }
 
-const fetchNOAAWeatherData = async (location: string): Promise<WeatherData | null> => {
+const fetchOpenMeteoWeatherData = async (location: string): Promise<WeatherData | null> => {
   try {
+    console.log('Fetching weather for location:', location)
+    
     // Get coordinates for the location
     const coords = await geocodeLocation(location)
-    if (!coords) return null
-
-    // Fetch NOAA grid point information
-    const pointResponse = await fetch(
-      `https://api.weather.gov/points/${coords.lat},${coords.lon}`,
-      {
-        headers: {
-          'User-Agent': '(Kraken Weather Portal, contact@example.com)'
-        }
-      }
-    )
-
-    if (!pointResponse.ok) {
-      throw new Error('Failed to fetch NOAA grid point data')
+    console.log('Geocoded coordinates:', coords)
+    if (!coords) {
+      console.error('Failed to get coordinates for location:', location)
+      return null
     }
 
-    const pointData = await pointResponse.json()
+    // Fetch current and forecast weather data from Open-Meteo
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature,precipitation_probability,precipitation,rain,showers,snowfall,snow_depth,weather_code,pressure_msl,cloud_cover,visibility,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,daylight_duration,sunshine_duration,uv_index_max,precipitation_sum,rain_sum,showers_sum,snowfall_sum,precipitation_hours,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant&timezone=auto&forecast_days=7`
+    console.log('Weather API URL:', weatherUrl)
     
-    // Fetch current observations from nearest station
-    const stationsResponse = await fetch(pointData.properties.observationStations, {
-      headers: {
-        'User-Agent': '(Kraken Weather Portal, contact@example.com)'
-      }
-    })
+    const weatherResponse = await fetch(weatherUrl)
+
+    if (!weatherResponse.ok) {
+      throw new Error('Failed to fetch Open-Meteo weather data')
+    }
+
+    const weatherData = await weatherResponse.json()
     
-    let currentWeather = null
-    if (stationsResponse.ok) {
-      const stationsData = await stationsResponse.json()
-      if (stationsData.features && stationsData.features.length > 0) {
-        const nearestStation = stationsData.features[0].properties.stationIdentifier
-        
-        const obsResponse = await fetch(
-          `https://api.weather.gov/stations/${nearestStation}/observations/latest`,
-          {
-            headers: {
-              'User-Agent': '(Kraken Weather Portal, contact@example.com)'
-            }
-          }
-        )
-        
-        if (obsResponse.ok) {
-          const obsData = await obsResponse.json()
-          const obs = obsData.properties
-          
-          currentWeather = {
-            temperature: obs.temperature?.value ? Math.round(obs.temperature.value) : 25,
-            humidity: obs.relativeHumidity?.value ? Math.round(obs.relativeHumidity.value) : 60,
-            windSpeed: obs.windSpeed?.value ? Math.round(obs.windSpeed.value * 3.6) : 10, // Convert m/s to km/h
-            windDirection: obs.windDirection?.value || 270,
-            pressure: obs.barometricPressure?.value ? Math.round(obs.barometricPressure.value / 100) : 1013, // Convert Pa to hPa
-            visibility: obs.visibility?.value ? Math.round(obs.visibility.value / 1000) : 10, // Convert m to km
-            uvIndex: 5, // NOAA doesn't provide UV in observations
-            conditions: obs.textDescription || 'Clear',
-            icon: getWeatherIconFromDescription(obs.textDescription || 'Clear'),
-            lastUpdated: new Date()
-          }
-        }
-      }
+    // Process current weather
+    const current = weatherData.current
+    const currentWeather = {
+      temperature: Math.round(current.temperature_2m || 25),
+      humidity: Math.round(current.relative_humidity_2m || 60),
+      windSpeed: Math.round(current.wind_speed_10m || 10),
+      windDirection: Math.round(current.wind_direction_10m || 270),
+      pressure: Math.round(current.pressure_msl || 1013),
+      visibility: 10, // Default visibility since Open-Meteo hourly has this but not current
+      uvIndex: 5, // Will get from hourly data if available
+      conditions: getConditionsFromWeatherCode(current.weather_code || 0),
+      icon: getIconFromWeatherCode(current.weather_code || 0, current.is_day),
+      lastUpdated: new Date()
     }
-
-    // Fetch forecast data
-    const forecastResponse = await fetch(pointData.properties.forecast, {
-      headers: {
-        'User-Agent': '(Kraken Weather Portal, contact@example.com)'
-      }
-    })
     
-    const hourlyForecastResponse = await fetch(pointData.properties.forecastHourly, {
-      headers: {
-        'User-Agent': '(Kraken Weather Portal, contact@example.com)'
-      }
-    })
+    console.log(`🌡️ Weather API returned temperature: ${currentWeather.temperature}°C for location: ${location}`)
 
-    let forecastData = { hourly: [], daily: [] }
+    // Process hourly forecast (next 24 hours)
+    const hourlyForecast = []
+    for (let i = 1; i <= 24 && i < weatherData.hourly.time.length; i++) {
+      hourlyForecast.push({
+        time: new Date(weatherData.hourly.time[i]),
+        temperature: Math.round(weatherData.hourly.temperature_2m[i] || 25),
+        humidity: Math.round(weatherData.hourly.relative_humidity_2m[i] || 60),
+        windSpeed: Math.round(weatherData.hourly.wind_speed_10m[i] || 10),
+        windDirection: Math.round(weatherData.hourly.wind_direction_10m[i] || 270),
+        precipitationChance: Math.round(weatherData.hourly.precipitation_probability[i] || 0),
+        conditions: getConditionsFromWeatherCode(weatherData.hourly.weather_code[i] || 0),
+        icon: getIconFromWeatherCode(weatherData.hourly.weather_code[i] || 0, true) // Assume day for simplicity
+      })
+    }
+
+    // Process daily forecast (next 7 days)
+    const dailyForecast = []
+    for (let i = 1; i < weatherData.daily.time.length; i++) {
+      dailyForecast.push({
+        date: new Date(weatherData.daily.time[i]),
+        high: Math.round(weatherData.daily.temperature_2m_max[i] || 28),
+        low: Math.round(weatherData.daily.temperature_2m_min[i] || 20),
+        humidity: Math.round(weatherData.hourly.relative_humidity_2m[i * 24] || 65), // Approximate from hourly
+        windSpeed: Math.round(weatherData.daily.wind_speed_10m_max[i] || 15),
+        windDirection: Math.round(weatherData.daily.wind_direction_10m_dominant[i] || 270),
+        precipitationChance: Math.round(weatherData.daily.precipitation_probability_max[i] || 0),
+        conditions: getConditionsFromWeatherCode(weatherData.daily.weather_code[i] || 0),
+        icon: getIconFromWeatherCode(weatherData.daily.weather_code[i] || 0, true)
+      })
+    }
+
+    // Create sample alerts (Open-Meteo doesn't provide alerts, so we'll generate some based on conditions)
+    const alerts = []
+    if (current.wind_speed_10m > 30) {
+      alerts.push({
+        id: 'wind-alert',
+        type: 'warning' as const,
+        severity: 'moderate' as const,
+        title: 'High Wind Advisory',
+        description: `Strong winds of ${Math.round(current.wind_speed_10m)} km/h are expected. Secure loose objects and be cautious when driving.`,
+        startTime: new Date(),
+        endTime: new Date(Date.now() + 6 * 60 * 60 * 1000),
+        area: location
+      })
+    }
     
-    if (hourlyForecastResponse.ok) {
-      const hourlyData = await hourlyForecastResponse.json()
-      forecastData.hourly = hourlyData.properties.periods.slice(0, 24).map((period: any) => ({
-        time: new Date(period.startTime),
-        temperature: period.temperature || 25,
-        humidity: period.relativeHumidity?.value || 60,
-        windSpeed: Math.round((period.windSpeed?.replace(/\D/g, '') || 10) * 1.6), // Convert mph to km/h approximation
-        windDirection: 270,
-        precipitationChance: period.probabilityOfPrecipitation?.value || 0,
-        conditions: period.shortForecast || 'Clear',
-        icon: getWeatherIconFromDescription(period.shortForecast || 'Clear')
-      }))
+    if (current.temperature_2m > 35) {
+      alerts.push({
+        id: 'heat-alert',
+        type: 'advisory' as const,
+        severity: 'minor' as const,
+        title: 'High Temperature Advisory',
+        description: `High temperatures of ${Math.round(current.temperature_2m)}°C are expected. Stay hydrated and avoid prolonged sun exposure.`,
+        startTime: new Date(),
+        endTime: new Date(Date.now() + 8 * 60 * 60 * 1000),
+        area: location
+      })
     }
 
-    if (forecastResponse.ok) {
-      const dailyData = await forecastResponse.json()
-      forecastData.daily = dailyData.properties.periods.slice(0, 14).map((period: any, index: number) => ({
-        date: new Date(Date.now() + index * 24 * 60 * 60 * 1000),
-        high: period.temperature || 28,
-        low: period.temperature ? period.temperature - 8 : 20,
-        humidity: 65,
-        windSpeed: Math.round((period.windSpeed?.replace(/\D/g, '') || 10) * 1.6),
-        windDirection: 270,
-        precipitationChance: period.probabilityOfPrecipitation?.value || 0,
-        conditions: period.shortForecast || 'Clear',
-        icon: getWeatherIconFromDescription(period.shortForecast || 'Clear')
-      }))
-    }
-
-    // Fetch weather alerts
-    const alertsResponse = await fetch(
-      `https://api.weather.gov/alerts/active?point=${coords.lat},${coords.lon}`,
-      {
-        headers: {
-          'User-Agent': '(Kraken Weather Portal, contact@example.com)'
-        }
-      }
-    )
-
-    let alerts = []
-    if (alertsResponse.ok) {
-      const alertsData = await alertsResponse.json()
-      alerts = alertsData.features.slice(0, 5).map((alert: any, index: number) => ({
-        id: `alert-${index}`,
-        type: alert.properties.event?.toLowerCase().includes('warning') ? 'warning' : 'watch',
-        severity: alert.properties.severity?.toLowerCase() || 'moderate',
-        title: alert.properties.event || 'Weather Alert',
-        description: alert.properties.description || 'Weather alert in effect',
-        startTime: new Date(alert.properties.effective || Date.now()),
-        endTime: new Date(alert.properties.expires || Date.now() + 24 * 60 * 60 * 1000),
-        area: alert.properties.areaDesc || location
-      }))
-    }
-
-    return {
+    const finalWeatherData = {
       location,
       coordinates: coords,
-      current: currentWeather || {
-        temperature: 25,
-        humidity: 60,
-        windSpeed: 10,
-        windDirection: 270,
-        pressure: 1013,
-        visibility: 10,
-        uvIndex: 5,
-        conditions: 'Clear',
-        icon: 'clear',
-        lastUpdated: new Date()
+      current: currentWeather,
+      forecast: {
+        hourly: hourlyForecast,
+        daily: dailyForecast
       },
-      forecast: forecastData,
       alerts
     }
+    
+    console.log(`✅ Returning weather data for ${location} with temp ${currentWeather.temperature}°C`)
+    return finalWeatherData
 
   } catch (error) {
-    console.error('Error fetching NOAA weather data:', error)
+    console.error('Error fetching Open-Meteo weather data:', error)
     return null
+  }
+}
+
+// Open-Meteo weather code to conditions mapping (WMO Weather interpretation codes)
+const getConditionsFromWeatherCode = (code: number): string => {
+  switch (code) {
+    case 0: return 'Clear'
+    case 1: return 'Mainly Clear'
+    case 2: return 'Partly Cloudy'
+    case 3: return 'Overcast'
+    case 45: case 48: return 'Fog'
+    case 51: case 53: case 55: return 'Drizzle'
+    case 56: case 57: return 'Freezing Drizzle'
+    case 61: case 63: case 65: return 'Rain'
+    case 66: case 67: return 'Freezing Rain'
+    case 71: case 73: case 75: return 'Snow'
+    case 77: return 'Snow Grains'
+    case 80: case 81: case 82: return 'Rain Showers'
+    case 85: case 86: return 'Snow Showers'
+    case 95: return 'Thunderstorm'
+    case 96: case 99: return 'Thunderstorm with Hail'
+    default: return 'Clear'
+  }
+}
+
+// Open-Meteo weather code to icon mapping
+const getIconFromWeatherCode = (code: number, isDay: boolean = true): string => {
+  switch (code) {
+    case 0: return isDay ? 'sunny' : 'clear'
+    case 1: return isDay ? 'sunny' : 'clear'
+    case 2: return 'partly-cloudy'
+    case 3: return 'cloudy'
+    case 45: case 48: return 'cloudy' // fog
+    case 51: case 53: case 55: return 'drizzle'
+    case 56: case 57: return 'drizzle' // freezing drizzle
+    case 61: return 'light-rain'
+    case 63: return 'rain'
+    case 65: return 'heavy-rain'
+    case 66: case 67: return 'rain' // freezing rain
+    case 71: case 73: case 75: case 77: return 'snow'
+    case 80: case 81: case 82: return 'rain'
+    case 85: case 86: return 'snow'
+    case 95: case 96: case 99: return 'thunderstorms'
+    default: return isDay ? 'sunny' : 'clear'
   }
 }
 
@@ -682,6 +748,98 @@ const getWeatherIconFromDescription = (description: string): string => {
 
 const WeatherPortal: React.FC<WeatherPortalProps> = ({ level, onLevelChange, onClose }) => {
   const { weatherData, isLoading, lastUpdated, settings, setSettings, refreshWeatherData, updateLocationWeather } = useWeatherPortal()
+  const [searchResults, setSearchResults] = useState<Array<{name: string, country: string, admin1: string, admin2: string, lat: number, lon: number, fullName: string}>>([])
+  const [showSearchResults, setShowSearchResults] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const searchTimeoutRef = useRef<number | null>(null)
+
+  // Initialize search term when settings.location changes
+  useEffect(() => {
+    setSearchTerm(settings.location)
+  }, [settings.location])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const searchLocations = async (query: string) => {
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    if (query.length < 2) {
+      setSearchResults([])
+      setShowSearchResults(false)
+      return
+    }
+
+    // Debounce the search with 300ms delay
+    searchTimeoutRef.current = window.setTimeout(async () => {
+      try {
+        console.log('Searching for locations with query:', query)
+        const response = await fetch(
+          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=10&language=en&format=json`
+        )
+        
+        console.log('Search response status:', response.status)
+        
+        if (response.ok) {
+          const data = await response.json()
+          console.log('Search response data:', data)
+          if (data.results) {
+            const mappedResults = data.results.map((result: any) => ({
+              name: result.name,
+              country: result.country || '',
+              admin1: result.admin1 || '', // State/Province
+              admin2: result.admin2 || '', // County/Region
+              lat: result.latitude,
+              lon: result.longitude,
+              fullName: `${result.name}${result.admin1 ? `, ${result.admin1}` : ''}${result.country ? `, ${result.country}` : ''}`
+            }))
+            
+            // Remove duplicates and sort by relevance
+            type SearchResult = {name: string, country: string, admin1: string, admin2: string, lat: number, lon: number, fullName: string}
+            const uniqueResults = mappedResults.filter((result: SearchResult, index: number, self: SearchResult[]) => {
+              return index === self.findIndex((r: SearchResult) => r.lat === result.lat && r.lon === result.lon)
+            }).sort((a: SearchResult, b: SearchResult) => {
+              // Prioritize exact name matches and larger cities (population would be ideal but not available)
+              const aExact = a.name.toLowerCase() === query.toLowerCase()
+              const bExact = b.name.toLowerCase() === query.toLowerCase()
+              if (aExact && !bExact) return -1
+              if (!aExact && bExact) return 1
+              return 0
+            })
+            console.log('Mapped search results:', uniqueResults)
+            setSearchResults(uniqueResults)
+            setShowSearchResults(true)
+          } else {
+            console.log('No results found in search response')
+            setSearchResults([])
+            setShowSearchResults(false)
+          }
+        } else {
+          console.error('Search request failed with status:', response.status)
+        }
+      } catch (error) {
+        console.error('Search error:', error)
+      }
+    }, 300)
+  }
+
+  const selectSearchResult = (result: {name: string, country: string, admin1: string, admin2: string, fullName: string}) => {
+    console.log('Selected search result:', result)
+    const locationName = result.fullName
+    setSearchTerm('') // Clear search term so input shows the actual location
+    updateLocationWeather(locationName)
+    setShowSearchResults(false)
+    setSearchResults([])
+  }
 
   const exportWeatherData = () => {
     const data = JSON.stringify(weatherData, null, 2)
@@ -711,6 +869,49 @@ const WeatherPortal: React.FC<WeatherPortalProps> = ({ level, onLevelChange, onC
                 {weatherData.alerts.length} Alert{weatherData.alerts.length > 1 ? 's' : ''}
               </Badge>
             )}
+          </div>
+        </div>
+
+        {/* Quick Location Selector for Level 2 */}
+        <div className="p-4 border-b border-gray-700">
+          <div className="flex gap-2 items-center">
+            <Select 
+              value={settings.location} 
+              onValueChange={(value) => {
+                console.log('Level 2 dropdown: Changing location to:', value)
+                setSearchTerm('') // Clear search term when using dropdown
+                updateLocationWeather(value)
+              }}
+            >
+              <SelectTrigger className="flex-1 bg-gray-800 border-gray-600 text-gray-100 text-sm">
+                <SelectValue placeholder="Change location..." />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-800 border-gray-600 text-gray-100">
+                <SelectItem value="Tel Aviv, Israel">Tel Aviv, Israel</SelectItem>
+                <SelectItem value="New York, NY">New York, NY</SelectItem>
+                <SelectItem value="London, UK">London, UK</SelectItem>
+                <SelectItem value="Tokyo, Japan">Tokyo, Japan</SelectItem>
+                <SelectItem value="Paris, France">Paris, France</SelectItem>
+                <SelectItem value="Sydney, Australia">Sydney, Australia</SelectItem>
+                <SelectItem value="Berlin, Germany">Berlin, Germany</SelectItem>
+                <SelectItem value="Madrid, Spain">Madrid, Spain</SelectItem>
+                <SelectItem value="Rome, Italy">Rome, Italy</SelectItem>
+                <SelectItem value="Amsterdam, Netherlands">Amsterdam, Netherlands</SelectItem>
+                <SelectItem value="Washington, DC">Washington, DC</SelectItem>
+                <SelectItem value="Los Angeles, CA">Los Angeles, CA</SelectItem>
+                <SelectItem value="Chicago, IL">Chicago, IL</SelectItem>
+                <SelectItem value="Miami, FL">Miami, FL</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-gray-600 hover:bg-gray-800"
+              onClick={() => onLevelChange?.(3)}
+              title="Open full settings"
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
           </div>
         </div>
 
@@ -1082,29 +1283,113 @@ const WeatherPortal: React.FC<WeatherPortalProps> = ({ level, onLevelChange, onC
                 <label className="text-sm font-medium text-gray-300 mb-2 block">
                   Location
                 </label>
-                <div className="flex gap-2">
+                
+                {/* Quick City Selector */}
+                <div className="mb-3">
+                  <Select value={settings.location} onValueChange={(value) => {
+                    console.log('Level 3 dropdown: Changing location to:', value)
+                    setSearchTerm('') // Clear search term when using dropdown
+                    updateLocationWeather(value)
+                  }}>
+                    <SelectTrigger className="bg-gray-800 border-gray-600 text-gray-100">
+                      <SelectValue placeholder="Select a city..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-800 border-gray-600 text-gray-100">
+                      <SelectItem value="Tel Aviv, Israel">Tel Aviv, Israel</SelectItem>
+                      <SelectItem value="New York, NY">New York, NY</SelectItem>
+                      <SelectItem value="London, UK">London, UK</SelectItem>
+                      <SelectItem value="Tokyo, Japan">Tokyo, Japan</SelectItem>
+                      <SelectItem value="Paris, France">Paris, France</SelectItem>
+                      <SelectItem value="Sydney, Australia">Sydney, Australia</SelectItem>
+                      <SelectItem value="Berlin, Germany">Berlin, Germany</SelectItem>
+                      <SelectItem value="Madrid, Spain">Madrid, Spain</SelectItem>
+                      <SelectItem value="Rome, Italy">Rome, Italy</SelectItem>
+                      <SelectItem value="Amsterdam, Netherlands">Amsterdam, Netherlands</SelectItem>
+                      <SelectItem value="Washington, DC">Washington, DC</SelectItem>
+                      <SelectItem value="Los Angeles, CA">Los Angeles, CA</SelectItem>
+                      <SelectItem value="Chicago, IL">Chicago, IL</SelectItem>
+                      <SelectItem value="Miami, FL">Miami, FL</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Custom Location Input with Autocomplete */}
+                <div className="relative">
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
                       <Input
                         type="text"
-                        placeholder="Enter city, country"
-                        value={settings.location}
-                        onChange={(e) => setSettings(prev => ({ ...prev, location: e.target.value }))}
+                        placeholder="Or enter custom city..."
+                        value={searchTerm !== '' ? searchTerm : settings.location}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          setSearchTerm(value)
+                          // Don't update settings.location until we actually fetch weather data
+                          searchLocations(value)
+                        }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
-                            updateLocationWeather(settings.location)
+                            const locationToUpdate = searchTerm !== '' ? searchTerm : settings.location
+                            updateLocationWeather(locationToUpdate)
+                            setSearchTerm('') // Clear search term after updating
+                            setShowSearchResults(false)
+                          } else if (e.key === 'Escape') {
+                            setShowSearchResults(false)
                           }
+                        }}
+                        onFocus={() => {
+                          if (searchResults.length > 0) {
+                            setShowSearchResults(true)
+                          }
+                        }}
+                        onBlur={() => {
+                          // Delay hiding to allow click on results
+                          setTimeout(() => setShowSearchResults(false), 200)
                         }}
                         className="bg-gray-800 border-gray-600 text-gray-100 placeholder-gray-400"
                       />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-gray-600 hover:bg-gray-800 px-3"
-                        onClick={() => updateLocationWeather(settings.location)}
-                        disabled={isLoading}
-                      >
-                        <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-                      </Button>
+                      
+                      {/* Autocomplete Results */}
+                      {showSearchResults && searchResults.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-gray-800 border border-gray-600 rounded-md shadow-lg max-h-64 overflow-y-auto">
+                          {searchResults.map((result, index) => (
+                            <div
+                              key={index}
+                              className="px-3 py-2 hover:bg-gray-700 cursor-pointer text-sm text-gray-100 border-b border-gray-700 last:border-b-0"
+                              onClick={() => selectSearchResult(result)}
+                            >
+                              <div className="font-medium">{result.fullName}</div>
+                              <div className="text-xs text-gray-400 flex items-center justify-between">
+                                <span>
+                                  {result.admin2 && `${result.admin2}, `}
+                                  {result.admin1 && `${result.admin1}, `}
+                                  {result.country}
+                                </span>
+                                <span className="text-gray-500">
+                                  {result.lat.toFixed(2)}, {result.lon.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-gray-600 hover:bg-gray-800 px-3"
+                      onClick={() => {
+                        const locationToUpdate = searchTerm !== '' ? searchTerm : settings.location
+                        updateLocationWeather(locationToUpdate)
+                        setSearchTerm('') // Clear search term after updating
+                        setShowSearchResults(false)
+                      }}
+                      disabled={isLoading}
+                    >
+                      <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -1188,11 +1473,11 @@ const WeatherPortal: React.FC<WeatherPortalProps> = ({ level, onLevelChange, onC
               <div className="space-y-2 text-xs text-gray-400">
                 <div className="flex items-center space-x-2">
                   <Satellite className="w-3 h-3" />
-                  <span>NOAA Weather Service</span>
+                  <span>Open-Meteo Weather API</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <BarChart3 className="w-3 h-3" />
-                  <span>Real-time observations</span>
+                  <span>Global weather models</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Clock className="w-3 h-3" />

@@ -44,6 +44,8 @@ export function usePortalState() {
 
   const closePortal = (portalId: string) => {
     setOpenPortals(prev => prev.filter(portal => portal.id !== portalId))
+    // Also clear fullscreen if this portal is currently fullscreen
+    setFullscreenPortal(prev => prev?.id === portalId ? null : prev)
   }
 
   const closeAllPortals = () => {

@@ -27,14 +27,27 @@ export function useMouseTracking() {
     const handleMouseMove = (e: MouseEvent) => {
       setMousePosition({ x: e.clientX, y: e.clientY })
       
-      // Calculate tray visibility based on mouse position (excluding top)
-      const threshold = 60
+      // Calculate tray visibility based on mouse position near edge centers
+      const edgeThreshold = 60 // How close to the edge
+      const centerThreshold = 200 // How close to the center of the edge
       const { innerWidth, innerHeight } = window
       
+      // Calculate center points
+      const centerX = innerWidth / 2
+      const centerY = (innerHeight - 24) / 2 + 24 // Account for classification banner
+      
       setTrayVisibility({
-        bottom: e.clientY > innerHeight - threshold,
-        left: e.clientX < threshold,
-        right: e.clientX > innerWidth - threshold
+        // Bottom tray: mouse near bottom edge AND near horizontal center
+        bottom: e.clientY > innerHeight - edgeThreshold && 
+                Math.abs(e.clientX - centerX) < centerThreshold,
+        
+        // Left tray: mouse near left edge AND near vertical center
+        left: e.clientX < edgeThreshold && 
+              Math.abs(e.clientY - centerY) < centerThreshold,
+        
+        // Right tray: mouse near right edge AND near vertical center
+        right: e.clientX > innerWidth - edgeThreshold && 
+               Math.abs(e.clientY - centerY) < centerThreshold
       })
     }
 
