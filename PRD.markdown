@@ -211,7 +211,7 @@ The Alerts Portal delivers prioritized notifications.
 ### Level 3: Alerts Portal
 - **Advanced Threat Alerts**:
   - Generate detailed notifications with threat details (e.g., speed, trajectory).
-  - Prioritize alerts using AI-driven assessment, with customizable thresholds.
+  - Prioritize alerts using AI-driven assessment (AI, called Kraken, coming later), with customizable thresholds.
 - **System Status Alerts**:
   - Monitor sensor/effector connectivity, ammo, and cyber threats.
   - Notify of interoperability issues (e.g., dropped Link 16).
@@ -380,7 +380,7 @@ The Confidence Scoring Engine assesses reliability of detections and plans.
 - **Error Handling**: Display fallback data and user-friendly error messages if APIs fail.
 
 ## Future Enhancements
-- Voice recognition and text-to-speech for true JARVIS interaction.
+- Voice recognition and text-to-speech for true Kraken AI interaction.
 - Customizable portal layouts and user preferences.
 - Audio feedback for portal interactions.
 - Radar/satellite imagery integration for Weather Portal.
