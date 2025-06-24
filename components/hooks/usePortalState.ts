@@ -97,6 +97,14 @@ export function usePortalState(isAIPanelActive?: boolean, onAIPanelClose?: () =>
   }
 
   const closeFullscreenPortal = () => {
+    // When minimizing from fullscreen, add portal back to grid if it's not already there
+    if (fullscreenPortal) {
+      const existingInGrid = openPortals.find(p => p.id === fullscreenPortal.id)
+      if (!existingInGrid) {
+        console.log('🔄 Minimizing fullscreen portal back to grid:', fullscreenPortal.title)
+        openPortal(fullscreenPortal)
+      }
+    }
     setFullscreenPortal(null)
   }
 
@@ -142,8 +150,8 @@ export function usePortalState(isAIPanelActive?: boolean, onAIPanelClose?: () =>
       const positionKey = `${position.row}-${position.col}`
       if (!occupiedPositions.includes(positionKey)) {
         return position
+        }
       }
-    }
     
     return null
   }
@@ -153,6 +161,34 @@ export function usePortalState(isAIPanelActive?: boolean, onAIPanelClose?: () =>
     ...openPortals.map(p => p.id),
     ...(fullscreenPortal ? [fullscreenPortal.id] : [])
   ]
+
+  // Update portal context without changing level or position
+  const updatePortalContext = (portalId: string, context: any) => {
+    console.log(`🔄 Updating portal context for: ${portalId}`, context)
+    
+    // Check if portal is open in fullscreen
+    if (fullscreenPortal && fullscreenPortal.id === portalId) {
+      console.log(`🔄 Updating fullscreen portal context`)
+      const updatedFullscreenPortal = { ...fullscreenPortal, context }
+      setFullscreenPortal(updatedFullscreenPortal)
+    } 
+    // Check if portal is open in grid
+    else {
+      const existingPortal = openPortals.find(p => p.id === portalId)
+      if (existingPortal) {
+        console.log(`🔄 Updating grid portal context`)
+        const updatedPortal = { ...existingPortal, context }
+        // Update the portal in the openPortals array
+        setOpenPortals(prev => prev.map(p => 
+          p.id === portalId ? updatedPortal : p
+        ))
+      } else {
+        console.log(`🔄 Portal not currently open: ${portalId}`)
+        return false // Portal not open
+      }
+    }
+    return true // Successfully updated
+  }
 
   // Check if there are any open portals (either in grid or fullscreen)
   const hasOpenPortals = openPortals.length > 0 || fullscreenPortal !== null
@@ -168,6 +204,7 @@ export function usePortalState(isAIPanelActive?: boolean, onAIPanelClose?: () =>
     closeAllPortals,
     openFullscreenPortal,
     closeFullscreenPortal,
-    expandPortalToFullscreen
+    expandPortalToFullscreen,
+    updatePortalContext
   }
 } 

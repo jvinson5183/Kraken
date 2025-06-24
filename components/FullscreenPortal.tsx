@@ -215,6 +215,7 @@ function renderFullscreenPortalContent(portal: PortalData, onClose: () => void, 
             }
           }} 
           onClose={onClose} 
+          context={portal.context ? { action: portal.context.action as any, location: portal.context.location, zoomLevel: portal.context.zoomLevel } : undefined}
         />
       )
     case 'camera-capability':
@@ -263,6 +264,7 @@ function renderFullscreenPortalContent(portal: PortalData, onClose: () => void, 
             }
           }} 
           onClose={onClose} 
+          context={portal.context ? { action: portal.context.action || '', parameters: portal.context.parameters } : undefined}
         />
       )
     case 'network-diagram':

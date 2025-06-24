@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   AlertTriangle, 
@@ -45,12 +45,17 @@ import { Alert, AlertDescription } from '../ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import { useAlertsState, type ThreatAlert, type SystemAlert, type AlertSettings } from '../hooks/useAlertsState'
+import { useAlertsBackend, BackendAlert } from '../hooks/useAlertsBackend'
 // Using simple button toggles instead of checkbox due to import issues
 
 interface AlertsPortalProps {
   level: 2 | 3
   onLevelChange?: (level: 2 | 3) => void
   onClose?: () => void
+  context?: {
+    action: string
+    parameters?: any
+  }
 }
 
 
@@ -139,7 +144,7 @@ const formatTimeAgo = (timestamp: Date) => {
   return `${days}d ago`
 }
 
-const AlertsPortal: React.FC<AlertsPortalProps> = ({ level, onLevelChange, onClose }) => {
+const AlertsPortal: React.FC<AlertsPortalProps> = ({ level, onLevelChange, onClose, context }) => {
   // Use persistent state hook to maintain state across level changes (Level 2 ↔ Level 3)
   const {
     threatAlerts,
@@ -161,7 +166,297 @@ const AlertsPortal: React.FC<AlertsPortalProps> = ({ level, onLevelChange, onClo
     handleEscalateAlert
   } = useAlertsState()
 
-  const allAlerts = [...threatAlerts, ...systemAlerts].sort((a, b) => 
+  // Backend alerts integration - use the same instance as JarvisInterface
+  const {
+    alerts: backendAlerts,
+    isConnected: backendConnected,
+    isLoading: backendLoading,
+    error: backendError,
+    updateAlertStatus,
+    clearAllAlerts: clearBackendAlerts
+  } = useAlertsBackend({ autoStart: true })
+
+  // Convert backend alerts to match frontend format
+  const convertBackendAlert = (alert: BackendAlert): ThreatAlert | SystemAlert => {
+    // Define threat types and system types
+    const threatTypes = ['threat', 'drone', 'missile', 'aircraft', 'ram', 'unknown', 'enemy']
+    const systemTypes = ['system', 'sensor', 'network', 'power', 'communication', 'cyber', 'ammo', 'interop']
+    
+    if (threatTypes.includes(alert.type)) {
+      // Map backend alert type to frontend threat type
+      const threatTypeMap: { [key: string]: 'drone' | 'aircraft' | 'missile' | 'ram' | 'unknown' } = {
+        'missile': 'missile',
+        'aircraft': 'aircraft', 
+        'drone': 'drone',
+        'ram': 'ram',
+        'unknown': 'unknown',
+        'threat': 'unknown'
+      }
+      
+      return {
+        id: alert.id,
+        timestamp: new Date(alert.timestamp),
+        type: threatTypeMap[alert.type] || 'unknown',
+        severity: alert.severity as 'critical' | 'high' | 'medium' | 'low',
+        title: alert.title,
+        description: alert.description,
+        location: alert.location,
+        // Scenario generator sends these fields directly, not in metadata
+        coordinates: (alert as any).coordinates as [number, number] | undefined,
+        speed: (alert as any).speed,
+        heading: (alert as any).heading,
+        altitude: (alert as any).altitude,
+        trajectory: alert.metadata?.trajectory,
+        confidence: (alert as any).confidence || alert.metadata?.confidence || 50,
+        source: alert.source,
+        status: alert.status as 'active' | 'resolved' | 'acknowledged' | 'escalated',
+        threatLevel: (alert.threatLevel || 'unknown') as 'imminent' | 'probable' | 'possible' | 'unlikely',
+        estimatedImpact: (alert as any).estimatedImpact ? new Date((alert as any).estimatedImpact) : 
+                        alert.metadata?.estimatedImpact ? new Date(alert.metadata.estimatedImpact) : undefined,
+        countermeasures: (alert as any).countermeasures || alert.metadata?.countermeasures || []
+      } as ThreatAlert
+    } else {
+      // Map backend alert type to frontend system type
+      const systemTypeMap: { [key: string]: 'sensor' | 'effector' | 'network' | 'power' | 'communication' | 'cyber' | 'ammo' | 'interop' } = {
+        'sensor': 'sensor',
+        'network': 'network',
+        'power': 'power',
+        'communication': 'communication',
+        'cyber': 'cyber',
+        'ammo': 'ammo',
+        'interop': 'interop',
+        'system': 'sensor' // default fallback
+      }
+      
+      return {
+        id: alert.id,
+        timestamp: new Date(alert.timestamp),
+        type: systemTypeMap[alert.type] || 'sensor',
+        severity: alert.severity as 'critical' | 'high' | 'medium' | 'low' | 'info',
+        title: alert.title,
+        description: alert.description,
+        // Scenario generator sends 'system' field directly
+        system: (alert as any).system || alert.source,
+        component: (alert as any).component || alert.metadata?.component,
+        status: alert.status as 'active' | 'resolved' | 'maintenance' | 'acknowledged',
+        affectedSystems: alert.affectedSystems || [],
+        // Scenario generator sends 'remediationSteps' directly
+        remediationSteps: (alert as any).remediationSteps || alert.recommendations || [],
+        estimatedRepair: (alert as any).estimatedRepair ? new Date((alert as any).estimatedRepair) :
+                        alert.metadata?.estimatedRepair ? new Date(alert.metadata.estimatedRepair) : undefined
+      } as SystemAlert
+    }
+  }
+
+  // Define threat types and system types
+  const threatTypes = ['threat', 'drone', 'missile', 'aircraft', 'ram', 'unknown', 'enemy']
+  const systemTypes = ['system', 'sensor', 'network', 'power', 'communication', 'cyber', 'ammo', 'interop']
+
+  // Combine mock alerts with backend alerts
+  const allBackendThreatAlerts: ThreatAlert[] = backendAlerts
+    .filter(alert => threatTypes.includes(alert.type))
+    .map(alert => {
+      console.log('🔄 Converting threat alert:', alert)
+      return convertBackendAlert(alert) as ThreatAlert
+    })
+
+  const allBackendSystemAlerts: SystemAlert[] = backendAlerts
+    .filter(alert => systemTypes.includes(alert.type))
+    .map(alert => {
+      console.log('🔄 Converting system alert:', alert)
+      return convertBackendAlert(alert) as SystemAlert
+    })
+
+  // Debug the filtering
+  React.useEffect(() => {
+    console.log('🔍 Backend Alert Types:')
+    backendAlerts.forEach((alert, index) => {
+      console.log(`  Alert ${index + 1}: type="${alert.type}", title="${alert.title}"`)
+    })
+    console.log('🔍 Filtering results:')
+    console.log(`  Threat alerts found: ${backendAlerts.filter(a => threatTypes.includes(a.type)).length}`)
+    console.log(`  System alerts found: ${backendAlerts.filter(a => systemTypes.includes(a.type)).length}`)
+    console.log(`  Threat types: ${threatTypes.join(', ')}`)
+    console.log(`  System types: ${systemTypes.join(', ')}`)
+  }, [backendAlerts, threatTypes, systemTypes])
+
+  // Enhanced alert action handlers that work with both backend and mock alerts
+  const handleEnhancedAcknowledgeAlert = useCallback(async (alertId: string) => {
+    console.log('🔄 Acknowledging alert:', alertId)
+    
+    // Check if this is a backend alert
+    const isBackendAlert = backendAlerts.some(alert => alert.id === alertId)
+    
+    if (isBackendAlert) {
+      console.log('📡 Updating backend alert status to acknowledged')
+      const success = await updateAlertStatus(alertId, 'acknowledged')
+      if (!success) {
+        console.error('❌ Failed to update backend alert status')
+      }
+    } else {
+      console.log('📝 Updating mock alert status to acknowledged')
+      handleAcknowledgeAlert(alertId)
+    }
+  }, [backendAlerts, updateAlertStatus, handleAcknowledgeAlert])
+
+  const handleEnhancedResolveAlert = useCallback(async (alertId: string) => {
+    console.log('🔄 Resolving alert:', alertId)
+    
+    // Check if this is a backend alert
+    const isBackendAlert = backendAlerts.some(alert => alert.id === alertId)
+    
+    if (isBackendAlert) {
+      console.log('📡 Updating backend alert status to resolved')
+      const success = await updateAlertStatus(alertId, 'resolved')
+      if (!success) {
+        console.error('❌ Failed to update backend alert status')
+      }
+    } else {
+      console.log('📝 Updating mock alert status to resolved')
+      handleResolveAlert(alertId)
+    }
+  }, [backendAlerts, updateAlertStatus, handleResolveAlert])
+
+  const handleEnhancedEscalateAlert = useCallback(async (alertId: string) => {
+    console.log('🔄 Escalating alert:', alertId)
+    
+    // Check if this is a backend alert
+    const isBackendAlert = backendAlerts.some(alert => alert.id === alertId)
+    
+    if (isBackendAlert) {
+      console.log('📡 Updating backend alert status to escalated')
+      const success = await updateAlertStatus(alertId, 'escalated')
+      if (!success) {
+        console.error('❌ Failed to update backend alert status')
+      }
+    } else {
+      console.log('📝 Updating mock alert status to escalated')
+      handleEscalateAlert(alertId)
+    }
+  }, [backendAlerts, updateAlertStatus, handleEscalateAlert])
+
+  // Merge alerts (backend alerts take priority)
+  const combinedThreatAlerts = [...allBackendThreatAlerts, ...threatAlerts]
+  const combinedSystemAlerts = [...allBackendSystemAlerts, ...systemAlerts]
+
+  // Debug logging
+  React.useEffect(() => {
+    console.log('🔍 AlertsPortal Debug:')
+    console.log('  Backend alerts count:', backendAlerts.length)
+    console.log('  Backend connected:', backendConnected)
+    console.log('  Backend loading:', backendLoading)
+    console.log('  Backend error:', backendError)
+    console.log('  Converted threat alerts:', allBackendThreatAlerts.length)
+    console.log('  Converted system alerts:', allBackendSystemAlerts.length)
+    console.log('  Combined threat alerts:', combinedThreatAlerts.length)
+    console.log('  Combined system alerts:', combinedSystemAlerts.length)
+    if (backendAlerts.length > 0) {
+      console.log('  Latest backend alert:', backendAlerts[0])
+    }
+  }, [backendAlerts, backendConnected, backendLoading, backendError, allBackendThreatAlerts, allBackendSystemAlerts, combinedThreatAlerts, combinedSystemAlerts])
+
+  // Handle voice commands through context
+  useEffect(() => {
+    if (!context) return
+
+    console.log('AlertsPortal received context:', context)
+
+    switch (context.action) {
+      case 'filter_alerts':
+        if (context.parameters?.type) {
+          const typeMap: { [key: string]: string } = {
+            'all alerts': 'all',
+            'threat alerts': 'threat', 
+            'system alerts': 'system'
+          }
+          const mappedType = typeMap[context.parameters.type.toLowerCase()] || context.parameters.type
+          setSelectedAlertType(mappedType)
+          console.log('Setting alert type filter:', mappedType)
+        }
+        if (context.parameters?.severity) {
+          const severityMap: { [key: string]: string } = {
+            'all levels': 'all',
+            'critical': 'critical',
+            'high': 'high', 
+            'medium': 'medium',
+            'low': 'low'
+          }
+          const mappedSeverity = severityMap[context.parameters.severity.toLowerCase()] || context.parameters.severity
+          setSelectedSeverity(mappedSeverity)
+          console.log('Setting severity filter:', mappedSeverity)
+        }
+        if (context.parameters?.resolved !== undefined) {
+          setShowResolved(context.parameters.resolved)
+          console.log('Setting show resolved:', context.parameters.resolved)
+        }
+        break
+
+      case 'acknowledge_alert':
+        if (context.parameters?.alertId) {
+          handleEnhancedAcknowledgeAlert(context.parameters.alertId)
+          console.log('Acknowledging alert:', context.parameters.alertId)
+        } else if (context.parameters?.alertTitle) {
+          // Find alert by title and acknowledge
+          const allAlerts = [...combinedThreatAlerts, ...combinedSystemAlerts]
+          const alert = allAlerts.find(a => 
+            a.title.toLowerCase().includes(context.parameters.alertTitle.toLowerCase())
+          )
+          if (alert) {
+            handleEnhancedAcknowledgeAlert(alert.id)
+            console.log('Acknowledging alert by title:', alert.title)
+          }
+        }
+        break
+
+      case 'resolve_alert':
+        if (context.parameters?.alertId) {
+          handleEnhancedResolveAlert(context.parameters.alertId)
+          console.log('Resolving alert:', context.parameters.alertId)
+        } else if (context.parameters?.alertTitle) {
+          // Find alert by title and resolve
+          const allAlerts = [...combinedThreatAlerts, ...combinedSystemAlerts]
+          const alert = allAlerts.find(a => 
+            a.title.toLowerCase().includes(context.parameters.alertTitle.toLowerCase())
+          )
+          if (alert) {
+            handleEnhancedResolveAlert(alert.id)
+            console.log('Resolving alert by title:', alert.title)
+          }
+        }
+        break
+
+      case 'escalate_alert':
+        if (context.parameters?.alertId) {
+          handleEnhancedEscalateAlert(context.parameters.alertId)
+          console.log('Escalating alert:', context.parameters.alertId)
+        } else if (context.parameters?.alertTitle) {
+          // Find alert by title and escalate
+          const allAlerts = [...combinedThreatAlerts, ...combinedSystemAlerts]
+          const alert = allAlerts.find(a => 
+            a.title.toLowerCase().includes(context.parameters.alertTitle.toLowerCase())
+          )
+          if (alert) {
+            handleEnhancedEscalateAlert(alert.id)
+            console.log('Escalating alert by title:', alert.title)
+          }
+        }
+        break
+
+      case 'sort_alerts':
+        if (context.parameters?.sortBy) {
+          setSortBy(context.parameters.sortBy)
+          console.log('Setting sort order:', context.parameters.sortBy)
+        }
+        break
+
+      default:
+        console.log('Unknown alert action:', context.action)
+    }
+  }, [context, setSelectedAlertType, setSelectedSeverity, setShowResolved, setSortBy, 
+    handleEnhancedAcknowledgeAlert, handleEnhancedResolveAlert, handleEnhancedEscalateAlert,
+    combinedThreatAlerts, combinedSystemAlerts])
+
+  const allAlerts = [...combinedThreatAlerts, ...combinedSystemAlerts].sort((a, b) => 
     sortBy === 'timestamp' ? b.timestamp.getTime() - a.timestamp.getTime() :
     sortBy === 'severity' ? (b.severity === 'critical' ? 1 : 0) - (a.severity === 'critical' ? 1 : 0) :
     0
@@ -228,7 +523,7 @@ const AlertsPortal: React.FC<AlertsPortalProps> = ({ level, onLevelChange, onClo
               <Target className="w-4 h-4 text-orange-400" />
             </div>
             <div className="text-xl font-bold text-orange-400">
-              {threatAlerts.filter(a => a.status === 'active').length}
+              {combinedThreatAlerts.filter(a => a.status === 'active').length}
             </div>
           </div>
           <div className="bg-gray-800/50 rounded-lg p-3">
@@ -237,7 +532,7 @@ const AlertsPortal: React.FC<AlertsPortalProps> = ({ level, onLevelChange, onClo
               <Activity className="w-4 h-4 text-blue-400" />
             </div>
             <div className="text-xl font-bold text-blue-400">
-              {systemAlerts.filter(a => a.status === 'active').length}
+              {combinedSystemAlerts.filter(a => a.status === 'active').length}
             </div>
           </div>
         </div>
@@ -513,7 +808,7 @@ const AlertsPortal: React.FC<AlertsPortalProps> = ({ level, onLevelChange, onClo
                                   size="sm"
                                   variant="outline"
                                   className="border-yellow-600 hover:bg-yellow-700/20"
-                                  onClick={() => handleAcknowledgeAlert(alert.id)}
+                                  onClick={() => handleEnhancedAcknowledgeAlert(alert.id)}
                                 >
                                   <CheckCircle className="w-4 h-4" />
                                 </Button>
@@ -526,7 +821,7 @@ const AlertsPortal: React.FC<AlertsPortalProps> = ({ level, onLevelChange, onClo
                                   size="sm"
                                   variant="outline"
                                   className="border-green-600 hover:bg-green-700/20"
-                                  onClick={() => handleResolveAlert(alert.id)}
+                                  onClick={() => handleEnhancedResolveAlert(alert.id)}
                                 >
                                   <CheckCircle className="w-4 h-4" />
                                 </Button>
@@ -539,7 +834,7 @@ const AlertsPortal: React.FC<AlertsPortalProps> = ({ level, onLevelChange, onClo
                                   size="sm"
                                   variant="outline"
                                   className="border-red-600 hover:bg-red-700/20"
-                                  onClick={() => handleEscalateAlert(alert.id)}
+                                  onClick={() => handleEnhancedEscalateAlert(alert.id)}
                                 >
                                   <TrendingUp className="w-4 h-4" />
                                 </Button>

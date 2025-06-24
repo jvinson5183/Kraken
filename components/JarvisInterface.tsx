@@ -21,6 +21,7 @@ import {
 } from './constants/portalConfigs.tsx'
 import { WeatherPortalProvider } from './portals/WeatherPortal'
 import { KrakenAI } from './services/jarvisAI'
+import { useAlertsBackend, BackendAlert } from './hooks/useAlertsBackend'
 
 // Portal configurations imported from constants file
 
@@ -30,9 +31,28 @@ export function KrakenInterface() {
   // Keyboard shortcut trigger state
   const [shouldTriggerSearch, setShouldTriggerSearch] = useState(false)
   const [shouldTriggerAIPanel, setShouldTriggerAIPanel] = useState(false)
+  // Immediate alert message state
+  const [immediateAlertMessage, setImmediateAlertMessage] = useState<string | null>(null)
+  // Flag to prevent AI panel from closing during alert scenarios
+  const [isAlertScenario, setIsAlertScenario] = useState(false)
 
   // Initialize Kraken AI service
   const krakenAI = useMemo(() => new KrakenAI(), [])
+
+  // Generate AI alert message
+  const generateAlertMessage = (alert: BackendAlert): string => {
+    const severityMap = {
+      critical: 'CRITICAL',
+      high: 'HIGH PRIORITY', 
+      medium: 'MEDIUM PRIORITY',
+      low: 'LOW PRIORITY'
+    }
+    
+    const severity = severityMap[alert.severity] || 'UNKNOWN'
+    const alertType = alert.type === 'threat' ? 'threat' : 'system'
+    
+    return `${severity} ${alertType} alert detected: ${alert.title}. ${alert.description} Location: ${alert.location || 'Unknown'}. Alerts portal opened for immediate assessment.`
+  }
 
   // Custom hooks for state management
   const { mousePosition, trayVisibility } = useMouseTracking()
@@ -53,7 +73,8 @@ export function KrakenInterface() {
     openFullscreenPortal,
     closeFullscreenPortal,
     expandPortalToFullscreen,
-    openPortal
+    openPortal,
+    updatePortalContext
   } = usePortalState(isAIPanelActive, handleAIPanelClose)
 
   // Keyboard shortcut listener
@@ -72,14 +93,20 @@ export function KrakenInterface() {
       
       if (isCtrlShift2 || isF2) {
         event.preventDefault()
+        console.log('🎹 Keyboard shortcut detected:', isCtrlShift2 ? 'Ctrl+Shift+2' : 'F2')
         
-        if (!hasOpenPortals) {
+        // Check current portal state directly instead of relying on hasOpenPortals
+        const currentHasOpenPortals = openPortals.length > 0 || fullscreenPortal !== null
+        
+        if (!currentHasOpenPortals) {
           // No portals open: trigger search field
+          console.log('🎯 No portals open - triggering search field')
           setShouldTriggerSearch(true)
           // Reset the trigger after a brief moment
           setTimeout(() => setShouldTriggerSearch(false), 100)
         } else {
           // Portals open: trigger AI command panel in listening mode
+          console.log('🎯 Portals open - triggering AI panel')
           setShouldTriggerAIPanel(true)
           setIsAIPanelActive(true)
           // Reset the trigger after a brief moment
@@ -88,36 +115,34 @@ export function KrakenInterface() {
       }
     }
 
+    console.log('🎹 Keyboard shortcut listener registered')
     document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [hasOpenPortals])
+    return () => {
+      console.log('🎹 Keyboard shortcut listener removed')
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, []) // Empty dependency array to prevent re-registration
 
-  // Track if AI panel should be closed due to fullscreen portal
+  // Track if AI panel should be closed due to fullscreen portal (kept for compatibility)
   const [shouldCloseAIPanel, setShouldCloseAIPanel] = React.useState(false)
-  // Track if AI panel was open before fullscreen portal opened
-  const [wasAIPanelOpenBeforeFullscreen, setWasAIPanelOpenBeforeFullscreen] = React.useState(false)
-  // Track if we should restore AI panel
+  // Track if we should restore AI panel (kept for compatibility)
   const [shouldRestoreAIPanel, setShouldRestoreAIPanel] = React.useState(false)
 
-  // Close AI panel when fullscreen portal opens, restore when it closes
+  // REMOVED RESTRICTION: AI assistant can now appear on top of Level 3 portals
+  // This allows manual activation of Kraken AI even when fullscreen portals are open
   React.useEffect(() => {
     if (fullscreenPortal) {
-      // Remember if AI panel was active before closing it
-      if (isAIPanelActive) {
-        setWasAIPanelOpenBeforeFullscreen(true)
-        setIsAIPanelActive(false)
-      }
-      setShouldCloseAIPanel(true)
+      console.log('🎯 Fullscreen portal opened - AI assistant can still be activated manually')
+      // No longer automatically close AI panel when fullscreen opens
+      setShouldCloseAIPanel(false)
       setShouldRestoreAIPanel(false)
     } else {
       setShouldCloseAIPanel(false)
-      // Restore AI panel if it was open before fullscreen
-      if (wasAIPanelOpenBeforeFullscreen) {
-        setShouldRestoreAIPanel(true)
-        setWasAIPanelOpenBeforeFullscreen(false)
-      }
+      // Reset alert scenario flag when fullscreen closes
+      setIsAlertScenario(false)
+      // No automatic restoration needed since we don't auto-close anymore
     }
-  }, [fullscreenPortal, isAIPanelActive])
+  }, [fullscreenPortal, isAlertScenario])
 
   // Reset restoration flag after it's been processed
   React.useEffect(() => {
@@ -145,18 +170,30 @@ export function KrakenInterface() {
         const portal = allPortals.find(p => p.id === payload.portalId)
         if (portal) {
           console.log(`🎯 Found portal:`, portal.title)
+          console.log(`🎯 Portal context:`, payload.context)
+          
+          // Create portal with context if provided
+          const portalWithContext = payload.context ? { ...portal, context: payload.context } : portal
+          
           if (payload.isFullscreen || payload.level === 3) {
             console.log(`🎯 Opening portal in fullscreen (level 3)`)
-            openFullscreenPortal(portal)
+            openFullscreenPortal(portalWithContext)
           } else {
             // Check if portal is already open
             const existingPortal = openPortals.find(p => p.id === portal.id)
             if (!existingPortal) {
               console.log(`🎯 Opening portal in grid view (level 2) with AI panel state:`, isAIPanelActive)
               // Use openPortal instead of togglePortal to ensure grid logic is applied
-              openPortal(portal)
+              openPortal(portalWithContext)
             } else {
               console.log(`🎯 Portal already open:`, portal.id)
+              // Update existing portal with new context if provided
+              if (payload.context) {
+                console.log(`🎯 Updating existing portal with new context`)
+                const updatedPortal = { ...existingPortal, context: payload.context }
+                closePortal(portal.id) // Close existing
+                setTimeout(() => openPortal(updatedPortal), 100) // Reopen with context
+              }
             }
           }
           console.log(`🎯 Portal action executed: ${action}`, payload)
@@ -174,7 +211,42 @@ export function KrakenInterface() {
         closeAllPortals()
         console.log(`🎯 Portal action executed: ${action}`)
         break
+
+      case 'expand_portal':
+        const portalToExpand = allPortals.find(p => p.id === payload.portalId)
+        if (portalToExpand) {
+          console.log(`🎯 Expanding portal to fullscreen:`, portalToExpand.title)
+          // Check if portal is already open in grid
+          const existingPortal = openPortals.find(p => p.id === portalToExpand.id)
+          if (existingPortal) {
+            // Expand existing portal to fullscreen
+            handleExpandPortalToFullscreen(portalToExpand.id)
+          } else {
+            // Open portal directly in fullscreen if not already open
+            openFullscreenPortal(portalToExpand)
+          }
+          console.log(`🎯 Portal expansion executed: ${payload.portalId}`)
+        } else {
+          console.warn(`🎯 Portal to expand not found: ${payload.portalId}`)
+        }
+        break
         
+      case 'update_portal_context':
+        console.log(`🎯 Updating portal context for: ${payload.portalId}`, payload.context)
+        
+        const wasUpdated = updatePortalContext(payload.portalId, payload.context)
+        
+        if (!wasUpdated) {
+          console.log(`🎯 Portal not currently open, opening with context`)
+          // Portal not open, open it with the context (fallback behavior)
+          const portal = allPortals.find(p => p.id === payload.portalId)
+          if (portal) {
+            const portalWithContext = { ...portal, context: payload.context }
+            openPortal(portalWithContext)
+          }
+        }
+        break
+
       case 'control_interface':
         switch (payload.action) {
           case 'minimize_all':
@@ -195,7 +267,8 @@ export function KrakenInterface() {
 
   // Command executor hook
   const { executeCommand } = useCommandExecutor({
-    onPortalAction: handlePortalAction
+    onPortalAction: handlePortalAction,
+    openPortalIds: openPortalIds
   })
 
   // Layout utilities
@@ -206,6 +279,56 @@ export function KrakenInterface() {
   const handleExpandPortalToFullscreen = (portalId: string) => {
     expandPortalToFullscreen(portalId, allPortals)
   }
+
+  // Backend alerts integration with callback for new alerts
+  const handleNewAlert = React.useCallback((alert: BackendAlert) => {
+    console.log('🚨 New alert received from backend:', alert)
+    
+    // Generate AI message about the new alert
+    const aiMessage = generateAlertMessage(alert)
+    console.log('🤖 Kraken AI alert message:', aiMessage)
+    
+    // SIMULTANEOUS ACTIONS: Activate AI panel AND open portal together
+    console.log('🎬 Triggering simultaneous AI panel activation and portal opening')
+    
+    // 1. Set alert scenario flag to prevent AI panel from being closed
+    setIsAlertScenario(true)
+    
+    // 2. Set immediate alert message for instant display
+    setImmediateAlertMessage(aiMessage)
+    
+    // 3. Activate AI panel immediately
+    setIsAIPanelActive(true)
+    
+    // 4. Open alerts portal to Level 3 immediately  
+    const alertsPortal = allPortals.find(p => p.id === 'alerts')
+    if (alertsPortal) {
+      console.log('🎯 Opening alerts portal to Level 3 due to new alert')
+      openFullscreenPortal(alertsPortal)
+    }
+    
+    // 4. Process AI command for full response (this will show in the already-active AI panel)
+    if (krakenAI) {
+      krakenAI.processCommand(aiMessage, allPortals)
+        .then((response: any) => {
+          console.log('🤖 Kraken AI response to alert:', response)
+          // Clear immediate message once full AI response is ready
+          setImmediateAlertMessage(null)
+        })
+        .catch((error: any) => {
+          console.error('🚨 Error processing alert with Kraken AI:', error)
+          // Clear immediate message even on error
+          setImmediateAlertMessage(null)
+        })
+    }
+    
+  }, [openFullscreenPortal, allPortals, generateAlertMessage, krakenAI, setIsAIPanelActive, setImmediateAlertMessage, setIsAlertScenario])
+
+  const alertsBackend = useAlertsBackend({
+    pollInterval: 5000, // 5 seconds to reduce server load
+    autoStart: true,
+    onNewAlert: handleNewAlert
+  })
 
   return (
     <WeatherPortalProvider>
@@ -297,7 +420,7 @@ export function KrakenInterface() {
       <KrakenAssistant
         hasOpenPortals={hasOpenPortals}
         mousePosition={mousePosition}
-        className={(hasOpenPortals || isAIPanelActive) ? "absolute z-[200]" : ""}
+        className={(hasOpenPortals || isAIPanelActive) ? "absolute z-[300]" : ""}
         style={(hasOpenPortals || isAIPanelActive) ? {
           left: `${avatarPosition.left}px`,
           top: `${avatarPosition.top}px`
@@ -310,6 +433,7 @@ export function KrakenInterface() {
         shouldRestoreAIPanel={shouldRestoreAIPanel}
         shouldTriggerSearch={shouldTriggerSearch}
         shouldTriggerAIPanel={shouldTriggerAIPanel}
+        immediateMessage={immediateAlertMessage}
       />
 
       {/* Close All Portals Button - Bottom-left corner */}

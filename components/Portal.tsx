@@ -158,13 +158,13 @@ export function Portal({ portal, onClose, onExpand }: PortalProps) {
       case 'settings':
         return <SettingsPortal />
       case 'map':
-        return <MapPortal level={2} onLevelChange={() => {}} onClose={onClose} />
+        return <MapPortal level={2} onLevelChange={() => {}} onClose={onClose} context={portal.context ? { action: portal.context.action as any, location: portal.context.location, zoomLevel: portal.context.zoomLevel } : undefined} />
       case 'timeline':
         return <NewTimelinePortal level={2} onLevelChange={() => {}} onClose={onClose} />
       case 'messenger':
         return <MessengerPortal />
       case 'alerts':
-        return <AlertsPortal level={2} onLevelChange={() => {}} onClose={onClose} />
+        return <AlertsPortal level={2} onLevelChange={() => {}} onClose={onClose} context={portal.context ? { action: portal.context.action || '', parameters: portal.context.parameters } : undefined} />
       case 'camera-capability':
         return <CameraPortal level={2} onLevelChange={() => {}} onClose={onClose} />
       case 'data-view':

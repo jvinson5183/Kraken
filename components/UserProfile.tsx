@@ -21,7 +21,7 @@ export function UserProfile({
   username = 'Captain Malone',
   rank = 'Captain',
   avatarUrl,
-  position = { top: '56px', right: '64px' }
+  position = { top: '56px', right: '56px' }
 }: UserProfileProps) {
   const positionStyles = {
     top: position.top,

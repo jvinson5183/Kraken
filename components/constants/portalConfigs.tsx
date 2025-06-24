@@ -33,6 +33,12 @@ export interface PortalData {
   position?: { row: number; col: number }
   category: 'system' | 'specialized' | 'ai-engine'
   description?: string
+  context?: {
+    action?: 'zoom_to' | 'show_threats' | 'show_assets' | 'center_on' | 'filter_alerts' | 'acknowledge_alert' | 'resolve_alert' | 'escalate_alert' | 'sort_alerts'
+    location?: string
+    zoomLevel?: number
+    parameters?: any
+  }
 }
 
 /**

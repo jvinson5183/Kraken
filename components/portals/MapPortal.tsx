@@ -58,6 +58,11 @@ interface MapPortalProps {
   level: 2 | 3
   onLevelChange?: (level: 2 | 3) => void
   onClose?: () => void
+  context?: {
+    action?: 'zoom_to' | 'show_threats' | 'show_assets' | 'center_on'
+    location?: string
+    zoomLevel?: number
+  }
 }
 
 // Sample data - replace with real sensor feeds - Tel Aviv Area of Operations
@@ -242,14 +247,121 @@ const MapResizeHandler: React.FC<{ level: number }> = ({ level }) => {
   return null
 }
 
-const MapPortal: React.FC<MapPortalProps> = ({ level, onLevelChange, onClose }) => {
-  const [mapCenter] = useState<[number, number]>([32.0853, 34.7818])
-  const [mapZoom, setMapZoom] = useState(level === 2 ? 13 : 14)
-  const [selectedLayer, setSelectedLayer] = useState<'satellite' | 'terrain' | 'street'>('terrain')
-  const [showThreats, setShowThreats] = useState(true)
-  const [showAssets, setShowAssets] = useState(true)
-  const [showZones, setShowZones] = useState(true)
+// Component to handle programmatic map navigation
+const MapNavigationHandler: React.FC<{ center: [number, number]; zoom: number }> = ({ center, zoom }) => {
+  const map = useMap()
+
+  useEffect(() => {
+    console.log('🗺️ MapNavigationHandler: Setting view to', center, 'zoom', zoom)
+    map.setView(center, zoom, { animate: true, duration: 1.5 })
+  }, [center, zoom, map])
+
+  return null
+}
+
+// Geocoding function to convert location names to coordinates
+const geocodeLocation = async (location: string): Promise<{ lat: number; lon: number } | null> => {
+  try {
+    console.log('🗺️ Geocoding location:', location)
+    
+    const geocodeUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=10&language=en&format=json`
+    console.log('🌍 Geocoding URL:', geocodeUrl)
+    
+    const response = await fetch(geocodeUrl)
+    console.log('📍 Geocoding response status:', response.status)
+    
+    if (response.ok) {
+      const data = await response.json()
+      console.log('🎯 Geocoding response data:', data)
+      if (data.results && data.results.length > 0) {
+        console.log(`✅ Found ${data.results.length} geocoding results`)
+        
+        const bestMatch = data.results[0]
+        console.log('🏙️ Using first result:', bestMatch)
+        
+        const coords = { lat: bestMatch.latitude, lon: bestMatch.longitude }
+        console.log('📍 Selected coordinates:', coords, 'for location:', `${bestMatch.name}, ${bestMatch.admin1 || ''}, ${bestMatch.country}`)
+        return coords
+      } else {
+        console.log('❌ No results found in geocoding response')
+      }
+    } else {
+      console.error('🚫 Geocoding API failed with status:', response.status)
+    }
+    
+    // Fallback to hardcoded coordinates for common locations
+    const locationMap: { [key: string]: { lat: number; lon: number } } = {
+      'tel aviv, israel': { lat: 32.0853, lon: 34.7818 },
+      'tel aviv': { lat: 32.0853, lon: 34.7818 },
+      'new york, ny': { lat: 40.7128, lon: -74.0060 },
+      'new york': { lat: 40.7128, lon: -74.0060 },
+      'london, uk': { lat: 51.5074, lon: -0.1278 },
+      'london': { lat: 51.5074, lon: -0.1278 },
+      'tokyo, japan': { lat: 35.6762, lon: 139.6503 },
+      'tokyo': { lat: 35.6762, lon: 139.6503 },
+      'paris, france': { lat: 48.8566, lon: 2.3522 },
+      'paris': { lat: 48.8566, lon: 2.3522 },
+      'sydney, australia': { lat: -33.8688, lon: 151.2093 },
+      'sydney': { lat: -33.8688, lon: 151.2093 },
+      'washington, dc': { lat: 38.9072, lon: -77.0369 },
+      'los angeles, ca': { lat: 34.0522, lon: -118.2437 },
+      'chicago, il': { lat: 41.8781, lon: -87.6298 },
+      'miami, fl': { lat: 25.7617, lon: -80.1918 },
+      'berlin, germany': { lat: 52.5200, lon: 13.4050 },
+      'madrid, spain': { lat: 40.4168, lon: -3.7038 },
+      'rome, italy': { lat: 41.9028, lon: 12.4964 },
+      'amsterdam, netherlands': { lat: 52.3676, lon: 4.9041 },
+      'beijing, china': { lat: 39.9042, lon: 116.4074 },
+      'moscow, russia': { lat: 55.7558, lon: 37.6176 },
+      'dubai, uae': { lat: 25.2048, lon: 55.2708 },
+      'singapore': { lat: 1.3521, lon: 103.8198 },
+      'hong kong': { lat: 22.3193, lon: 114.1694 },
+      'mumbai, india': { lat: 19.0760, lon: 72.8777 },
+      'cairo, egypt': { lat: 30.0444, lon: 31.2357 }
+    }
+    
+    const normalized = location.toLowerCase().trim()
+    return locationMap[normalized] || { lat: 32.0853, lon: 34.7818 } // Default to Tel Aviv
+    
+  } catch (error) {
+    console.error('🚫 Geocoding error:', error)
+    return { lat: 32.0853, lon: 34.7818 } // Default to Tel Aviv
+  }
+}
+
+// Global state to persist map settings across component remounts
+let globalMapState = {
+  center: [32.0853, 34.7818] as [number, number],
+  zoom: 13,
+  layer: 'terrain' as 'satellite' | 'terrain' | 'street',
+  showThreats: true,
+  showAssets: true,
+  showZones: true
+}
+
+const MapPortal: React.FC<MapPortalProps> = ({ level, onLevelChange, onClose, context }) => {
+  // Use persistent state that doesn't reset on level changes
+  const [mapCenter, setMapCenter] = useState<[number, number]>(globalMapState.center)
+  const [mapZoom, setMapZoom] = useState(globalMapState.zoom)
+  const [selectedLayer, setSelectedLayer] = useState<'satellite' | 'terrain' | 'street'>(globalMapState.layer)
+  const [showThreats, setShowThreats] = useState(globalMapState.showThreats)
+  const [showAssets, setShowAssets] = useState(globalMapState.showAssets)
+  const [showZones, setShowZones] = useState(globalMapState.showZones)
   const [lastUpdate, setLastUpdate] = useState(new Date())
+  const [isNavigating, setIsNavigating] = useState(false)
+  const mapRef = useRef<any>(null)
+  
+  // Update global state whenever local state changes
+  useEffect(() => {
+    globalMapState = {
+      center: mapCenter,
+      zoom: mapZoom,
+      layer: selectedLayer,
+      showThreats,
+      showAssets,
+      showZones
+    }
+  }, [mapCenter, mapZoom, selectedLayer, showThreats, showAssets, showZones])
   
   useEffect(() => {
     const interval = setInterval(() => {
@@ -259,10 +371,63 @@ const MapPortal: React.FC<MapPortalProps> = ({ level, onLevelChange, onClose }) 
     return () => clearInterval(interval)
   }, [])
 
-  // Update zoom when level changes
+  // Note: Removed automatic zoom reset on level changes to preserve navigation state
+
+  // Handle navigation commands from AI
   useEffect(() => {
-    setMapZoom(level === 2 ? 13 : 14)
-  }, [level])
+    if (!context) return
+
+    const handleNavigation = async () => {
+      console.log('🗺️ MapPortal received context:', context)
+      setIsNavigating(true)
+
+      try {
+        if (context.action === 'zoom_to' || context.action === 'center_on') {
+          if (context.location) {
+            console.log('🎯 Navigating to location:', context.location)
+            const coords = await geocodeLocation(context.location)
+            if (coords) {
+              console.log('📍 Setting map center to:', coords)
+              setMapCenter([coords.lat, coords.lon])
+              
+              // Set zoom level based on context or maintain current zoom
+              const newZoom = context.zoomLevel || Math.max(mapZoom, 14) // Don't zoom out too much
+              setMapZoom(newZoom)
+              console.log('🔍 Setting zoom to:', newZoom)
+            }
+          }
+        } else if (context.action === 'show_threats') {
+          console.log('⚠️ Focusing on threats')
+          setShowThreats(true)
+          setShowAssets(false)
+          setShowZones(false)
+          // Center on threats if available
+          if (SAMPLE_THREATS.length > 0) {
+            const threatCenter = SAMPLE_THREATS[0].position
+            setMapCenter(threatCenter)
+            setMapZoom(15)
+          }
+        } else if (context.action === 'show_assets') {
+          console.log('🛡️ Focusing on assets')
+          setShowAssets(true)
+          setShowThreats(false)
+          setShowZones(false)
+          // Center on assets if available
+          if (SAMPLE_ASSETS.length > 0) {
+            const assetCenter = SAMPLE_ASSETS[0].position
+            setMapCenter(assetCenter)
+            setMapZoom(14)
+          }
+        }
+      } catch (error) {
+        console.error('🚫 Navigation error:', error)
+      } finally {
+        setTimeout(() => setIsNavigating(false), 1000)
+      }
+    }
+
+    handleNavigation()
+  }, [context, level])
 
   // Update main header status for Level 3
   useEffect(() => {
@@ -333,7 +498,7 @@ const MapPortal: React.FC<MapPortalProps> = ({ level, onLevelChange, onClose }) 
           <div className="flex-1 relative overflow-hidden">
             <div className="absolute inset-0">
               <MapContainer
-                key={`map-level-${level}`}
+                key="persistent-map"
                 center={mapCenter}
                 zoom={mapZoom}
                 style={{ height: '100%', width: '100%' }}
@@ -341,6 +506,7 @@ const MapPortal: React.FC<MapPortalProps> = ({ level, onLevelChange, onClose }) 
                 attributionControl={false}
               >
               <MapResizeHandler level={level} />
+              <MapNavigationHandler center={mapCenter} zoom={mapZoom} />
               <TileLayer
                 url={getTileLayerUrl()}
                 attribution=""
@@ -550,7 +716,7 @@ const MapPortal: React.FC<MapPortalProps> = ({ level, onLevelChange, onClose }) 
          <div className="flex-1 relative overflow-hidden min-h-0 max-h-full" style={{ maxHeight: '100%' }}>
                                    <div className="absolute inset-0 overflow-hidden max-h-full" style={{ maxHeight: '100%' }}>
              <MapContainer
-               key={`map-level-${level}`}
+               key="persistent-map"
                center={mapCenter}
                zoom={mapZoom}
                style={{ height: '100%', width: '100%' }}
@@ -558,6 +724,7 @@ const MapPortal: React.FC<MapPortalProps> = ({ level, onLevelChange, onClose }) 
                attributionControl={false}
              >
             <MapResizeHandler level={level} />
+            <MapNavigationHandler center={mapCenter} zoom={mapZoom} />
             <TileLayer
               url={getTileLayerUrl()}
               attribution=""
